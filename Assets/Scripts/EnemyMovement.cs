@@ -31,7 +31,7 @@ public class EnemyAI : MonoBehaviour
     private int currentPatrolIndex = 0;
 
     private NavMeshAgent agent;
-    private PlayerHealth playerHealth;
+    //private PlayerHealth playerHealth;
 
     private void Awake()
     {
@@ -44,7 +44,7 @@ public class EnemyAI : MonoBehaviour
     {
         if (player != null)
         {
-            playerHealth = player.GetComponent<PlayerHealth>();
+            //playerHealth = player.GetComponent<PlayerHealth>();
         }
         if (patrolPoints.Count > 0)
         {
@@ -54,7 +54,7 @@ public class EnemyAI : MonoBehaviour
 
     private void Update()
     {
-        if (player == null || (playerHealth != null && playerHealth.IsDead))
+        //if (player == null || (playerHealth != null && playerHealth.IsDead))
         {
             // Si el jugador no existe o ya murió, vuelve a patrullar
             currentState = EnemyState.Idle;
@@ -146,9 +146,9 @@ public class EnemyAI : MonoBehaviour
 
     private void PerformAttack()
     {
-        if (playerHealth != null && !playerHealth.IsDead)
+        //if (playerHealth != null && !playerHealth.IsDead)
         {
-            playerHealth.TakeDamage(attackDamage);
+            //playerHealth.TakeDamage(attackDamage);
 
             // Si se usa Animator:
             // GetComponent<Animator>()?.SetTrigger("Attack");

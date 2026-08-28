@@ -12,12 +12,10 @@ GameObject:
   - component: {fileID: 2449677709680476809}
   - component: {fileID: 6660267785425139794}
   - component: {fileID: 4224346730596831208}
-  - component: {fileID: 7007253698855345345}
-  - component: {fileID: 3903809948704171669}
   - component: {fileID: 1778039262523812873}
   m_Layer: 0
   m_Name: CapsuleEnemy
-  m_TagString: Untagged
+  m_TagString: Enemy
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -117,41 +115,6 @@ CapsuleCollider:
   m_Height: 2
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &7007253698855345345
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1903332982048016842}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3cc40500f8e0d2445bf9fbef3c5f8023, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: '::'
-  maxHealth: 100
-  currentHealth: 0
-  destroyDelay: 2.5
---- !u!114 &3903809948704171669
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1903332982048016842}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9d84dd69991bd2e42834381e682f1670, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: '::'
-  currentState: 0
-  player: {fileID: 0}
-  patrolPoints: []
-  detectionRange: 6
-  attackRange: 1.8
-  moveSpeed: 3.5
-  attackDamage: 15
-  attackCooldown: 1.2
 --- !u!195 &1778039262523812873
 NavMeshAgent:
   m_ObjectHideFlags: 0
