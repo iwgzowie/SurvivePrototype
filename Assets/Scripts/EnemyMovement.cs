@@ -18,6 +18,7 @@ public class EnemyAI : MonoBehaviour
     [Header("Target & Patrol")]
     [SerializeField] private Transform player;
     [SerializeField] private List<Transform> patrolPoints = new List<Transform>();
+    [SerializeField] private float waitTimeAtPoint = 1.5f;
 
     [Header("Range Configuration")]
     [SerializeField] private float detectionRange = 6f;
@@ -27,11 +28,14 @@ public class EnemyAI : MonoBehaviour
     [Header("Attack Settings")]
     [SerializeField] private float attackDamage = 15f;
     [SerializeField] private float attackCooldown = 1.2f;
-    private float lastAttackTime;
-    private int currentPatrolIndex = 0;
 
+    // Variables privadas de control
     private NavMeshAgent agent;
-    //private PlayerHealth playerHealth;
+    private PlayerHealth playerHealth;
+    private int currentPatrolIndex = 0;
+    private float waitTimer = 0f;
+    private bool isWaiting = false;
+    private float lastAttackTime;
 
     private void Awake()
     {
@@ -44,9 +48,10 @@ public class EnemyAI : MonoBehaviour
     {
         if (player != null)
         {
-            //playerHealth = player.GetComponent<PlayerHealth>();
+            playerHealth = player.GetComponent<PlayerHealth>();
         }
-        if (patrolPoints.Count > 0)
+
+        if (patrolPoints.Count > 0 && agent.isOnNavMesh)
         {
             SetNextPatrolDestination();
         }
@@ -54,13 +59,13 @@ public class EnemyAI : MonoBehaviour
 
     private void Update()
     {
-        //if (player == null || (playerHealth != null && playerHealth.IsDead))
+        if (player == null || (playerHealth != null && playerHealth.IsDead))
         {
-            // Si el jugador no existe o ya murió, vuelve a patrullar
             currentState = EnemyState.Idle;
             PatrolBehavior();
             return;
         }
+
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
         CheckStateTransitions(distanceToPlayer);
 
@@ -98,34 +103,61 @@ public class EnemyAI : MonoBehaviour
 
     private void PatrolBehavior()
     {
-        if (patrolPoints.Count == 0) return;
+        if (patrolPoints.Count == 0 || !agent.isOnNavMesh) return;
+
+        // Si está esperando en un punto
+        if (isWaiting)
+        {
+            agent.isStopped = true;
+            waitTimer += Time.deltaTime;
+
+            if (waitTimer >= waitTimeAtPoint)
+            {
+                isWaiting = false;
+                waitTimer = 0f;
+                currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Count;
+                SetNextPatrolDestination();
+            }
+            return;
+        }
 
         agent.isStopped = false;
 
-
-        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
+        // Comprobación por distancia directa al transform objetivo
+        Transform targetPoint = patrolPoints[currentPatrolIndex];
+        if (targetPoint != null)
         {
-            currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Count;
-            SetNextPatrolDestination();
+            float distanceToPoint = Vector3.Distance(transform.position, targetPoint.position);
+
+            if (distanceToPoint <= agent.stoppingDistance + 0.5f)
+            {
+                isWaiting = true;
+            }
         }
     }
 
     private void SetNextPatrolDestination()
     {
-        if (patrolPoints[currentPatrolIndex] != null)
+        if (patrolPoints.Count > 0 && patrolPoints[currentPatrolIndex] != null && agent.isOnNavMesh)
         {
+            agent.isStopped = false;
             agent.SetDestination(patrolPoints[currentPatrolIndex].position);
         }
     }
 
     private void ChaseBehavior()
     {
+        if (!agent.isOnNavMesh) return;
+
+        isWaiting = false;
+        waitTimer = 0f;
         agent.isStopped = false;
         agent.SetDestination(player.position);
     }
 
     private void AttackBehavior()
     {
+        if (!agent.isOnNavMesh) return;
 
         agent.isStopped = true;
 
@@ -138,20 +170,17 @@ public class EnemyAI : MonoBehaviour
 
         if (Time.time >= lastAttackTime + attackCooldown)
         {
-            Debug.Log("¡Enemigo atacando!");
             lastAttackTime = Time.time;
-            // Aca iria la animación de ataque o daño
+            PerformAttack();
         }
     }
 
     private void PerformAttack()
     {
-        //if (playerHealth != null && !playerHealth.IsDead)
+        Debug.Log("¡Enemigo atacando!");
+        if (playerHealth != null && !playerHealth.IsDead)
         {
-            //playerHealth.TakeDamage(attackDamage);
-
-            // Si se usa Animator:
-            // GetComponent<Animator>()?.SetTrigger("Attack");
+            playerHealth.TakeDamage(attackDamage);
         }
     }
 
