@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -9,10 +10,25 @@ public class EnemyHealth : MonoBehaviour
     [SerializeField] private float currentHealth;
 
     [Header("Death Settings")]
-    [SerializeField] private float destroyDelay = 2.5f; // Tiempo antes de destruir el objeto (para dejar correr la animación)
+    [SerializeField] private float destroyDelay = 2.5f;
+
+    [Header("Visual Feedback (Flash)")]
+    [SerializeField] private Renderer meshRenderer; // Puede ser MeshRenderer o SkinnedMeshRenderer
+    [SerializeField] private Color hitColor = Color.red;
+    [SerializeField] private float flashDuration = 0.12f;
+    private Material[] originalMaterials;
+    private Coroutine flashCoroutine;
+
+    [Header("Particle Feedback")]
+    [SerializeField] private GameObject hitParticlePrefab;
+
+    [Header("Audio Feedback")]
+    [SerializeField] private AudioSource audioSource;
+    [SerializeField] private AudioClip[] hitSounds;
+    [SerializeField] private AudioClip deathSound;
 
     // Eventos para conectar interfaces (UI) u otros sistemas
-    public event Action<float, float> OnHealthChanged; // (vidaActual, vidaMaxima)
+    public event Action<float, float> OnHealthChanged;
     public event Action OnDeath;
 
     private bool isDead = false;
@@ -21,9 +37,19 @@ public class EnemyHealth : MonoBehaviour
     private void Awake()
     {
         currentHealth = maxHealth;
+
+        // Auto-detección si no se asignaron en el Inspector
+        if (meshRenderer == null) meshRenderer = GetComponentInChildren<Renderer>();
+        if (audioSource == null) audioSource = GetComponent<AudioSource>();
+
+        // Cache de los materiales originales
+        if (meshRenderer != null)
+        {
+            originalMaterials = meshRenderer.materials;
+        }
     }
 
-    public void TakeDamage(float amount)
+    public void TakeDamage(float amount, Vector3 hitPosition = default)
     {
         if (isDead) return;
 
@@ -32,10 +58,61 @@ public class EnemyHealth : MonoBehaviour
 
         OnHealthChanged?.Invoke(currentHealth, maxHealth);
 
+        // Feedback de impacto
+        TriggerHitFlash();
+        PlayHitSound();
+        SpawnHitParticle(hitPosition);
+
         if (currentHealth <= 0f)
         {
             Die();
         }
+    }
+
+    private void TriggerHitFlash()
+    {
+        if (meshRenderer == null) return;
+
+        if (flashCoroutine != null)
+        {
+            StopCoroutine(flashCoroutine);
+        }
+        flashCoroutine = StartCoroutine(HitFlashRoutine());
+    }
+
+    private IEnumerator HitFlashRoutine()
+    {
+        foreach (var mat in meshRenderer.materials)
+        {
+            mat.color = hitColor;
+        }
+
+        yield return new WaitForSeconds(flashDuration);
+
+        for (int i = 0; i < meshRenderer.materials.Length; i++)
+        {
+            meshRenderer.materials[i].color = originalMaterials[i].color;
+        }
+
+        flashCoroutine = null;
+    }
+
+    private void PlayHitSound()
+    {
+        if (audioSource == null || hitSounds == null || hitSounds.Length == 0) return;
+
+        AudioClip clip = hitSounds[UnityEngine.Random.Range(0, hitSounds.Length)];
+        audioSource.pitch = UnityEngine.Random.Range(0.85f, 1.15f); // Variación de tono?
+        audioSource.PlayOneShot(clip);
+    }
+
+    private void SpawnHitParticle(Vector3 position)
+    {
+        if (hitParticlePrefab == null) return;
+
+        Vector3 spawnPos = position != default ? position : transform.position + Vector3.up;
+        GameObject effect = Instantiate(hitParticlePrefab, spawnPos, Quaternion.identity);
+        Destroy(effect, 1.5f);
     }
 
     private void Die()
@@ -43,18 +120,23 @@ public class EnemyHealth : MonoBehaviour
         isDead = true;
         OnDeath?.Invoke();
 
-        // 1. Desactivar componentes para que el enemigo no siga atacando ni bloqueando
+        if (deathSound != null)
+        {
+            AudioSource.PlayClipAtPoint(deathSound, transform.position);
+        }
+
+        // Desactivar componentes para evitar bloqueos y acciones residuales
         if (TryGetComponent<NavMeshAgent>(out var agent)) agent.enabled = false;
         if (TryGetComponent<EnemyAI>(out var ai)) ai.enabled = false;
         if (TryGetComponent<Collider>(out var col)) col.enabled = false;
 
-        // 2. Disparar animación de muerte si existe un Animator
+        // animación de muerte si existe
         if (TryGetComponent<Animator>(out var anim))
         {
             anim.SetTrigger("Die");
         }
 
-        // 3. Destruir el GameObject tras la animación
+        //  Destruir tras el retardo
         Destroy(gameObject, destroyDelay);
     }
 }
