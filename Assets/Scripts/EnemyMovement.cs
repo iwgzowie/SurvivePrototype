@@ -94,6 +94,8 @@ public class EnemyAI : MonoBehaviour
 
     private void CheckStateTransitions(float distanceToPlayer)
     {
+        EnemyState previousState = currentState;
+
         if (distanceToPlayer <= attackRange)
         {
             currentState = EnemyState.Attack;
@@ -105,6 +107,14 @@ public class EnemyAI : MonoBehaviour
         else
         {
             currentState = EnemyState.Idle;
+        }
+        // Si acaba de salir de persecución o ataque y vuelve a patrullar
+        if (previousState != EnemyState.Idle && currentState == EnemyState.Idle)
+        {
+            CancelCurrentAttack();
+            isWaiting = false;
+            waitTimer = 0f;
+            SetNextPatrolDestination(); // <-- Reasigna la ruta hacia el punto de patrulla
         }
     }
 
@@ -147,6 +157,28 @@ public class EnemyAI : MonoBehaviour
             agent.isStopped = false;
             agent.SetDestination(patrolPoints[currentPatrolIndex].position);
         }
+    }
+
+    private void SetClosestPatrolDestination()
+    {
+        if (patrolPoints.Count == 0 || !agent.isOnNavMesh) return;
+
+        int closestIndex = 0;
+        float minDistance = Mathf.Infinity;
+
+        for (int i = 0; i < patrolPoints.Count; i++)
+        {
+            if (patrolPoints[i] == null) continue;
+            float dist = Vector3.Distance(transform.position, patrolPoints[i].position);
+            if (dist < minDistance)
+            {
+                minDistance = dist;
+                closestIndex = i;
+            }
+        }
+
+        currentPatrolIndex = closestIndex;
+        SetNextPatrolDestination();
     }
 
     private void ChaseBehavior()
