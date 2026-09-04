@@ -119,86 +119,6 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1001 &77740741
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 0}
-    m_Modifications:
-    - target: {fileID: 3091135898011471324, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
-      propertyPath: ignoredRoot
-      value: 
-      objectReference: {fileID: 274145717}
-    - target: {fileID: 3243631560226216737, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
-      propertyPath: m_Name
-      value: UPPThirdPersonCamera
-      objectReference: {fileID: 0}
-    - target: {fileID: 3243631560226216739, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3243631560226216739, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 1.6100001
-      objectReference: {fileID: 0}
-    - target: {fileID: 3243631560226216739, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3243631560226216739, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 3243631560226216739, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3243631560226216739, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3243631560226216739, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3243631560226216739, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3243631560226216739, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3243631560226216739, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 5287920855167471863, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
-      propertyPath: TargetToFollow
-      value: 
-      objectReference: {fileID: 274145718}
-    - target: {fileID: 5287920855167471863, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
-      propertyPath: characterTarget
-      value: 
-      objectReference: {fileID: 274145716}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
---- !u!114 &77740742 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 5287920855167471863, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
-  m_PrefabInstance: {fileID: 77740741}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: bff97df09c5fcd1489b903ad08d62297, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UPP.Runtime::UPP.ThirdPersonController.CameraSystems.UPPTPSCameraController
 --- !u!1001 &274145715
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -207,10 +127,6 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 7414056755420331258, guid: d97ad55eda03a834f86a6998520d7624, type: 3}
-      propertyPath: cameraController
-      value: 
-      objectReference: {fileID: 77740742}
     - target: {fileID: 8698512886222771427, guid: d97ad55eda03a834f86a6998520d7624, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -260,27 +176,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: d97ad55eda03a834f86a6998520d7624, type: 3}
---- !u!114 &274145716 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 6247552042706634217, guid: d97ad55eda03a834f86a6998520d7624, type: 3}
-  m_PrefabInstance: {fileID: 274145715}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b30acf8f851504e43b8ddfa657c9f51c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UPP.Runtime::UPP.ThirdPersonController.UPPCharacterMovementComponent
---- !u!4 &274145717 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 8698512886222771427, guid: d97ad55eda03a834f86a6998520d7624, type: 3}
-  m_PrefabInstance: {fileID: 274145715}
-  m_PrefabAsset: {fileID: 0}
---- !u!4 &274145718 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 6480825134887617940, guid: d97ad55eda03a834f86a6998520d7624, type: 3}
-  m_PrefabInstance: {fileID: 274145715}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &542508511
 GameObject:
   m_ObjectHideFlags: 0
@@ -1148,4 +1043,3 @@ SceneRoots:
   - {fileID: 8345070700268369567}
   - {fileID: 1402827283}
   - {fileID: 274145715}
-  - {fileID: 77740741}

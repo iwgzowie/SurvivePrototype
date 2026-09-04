@@ -303,7 +303,7 @@ namespace UPP.ThirdPersonController.CameraSystems
 
 			if (upward.sqrMagnitude < 0.0001f)
 			{
-				upward = TargetToFollow.up;
+				upward = transform.up;
 			}
 
 			if (VerticalAxis != 0 && HorizonalAxis != 0)

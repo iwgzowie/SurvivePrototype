@@ -3558,3 +3558,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: UPP.Runtime::UPP.Runtime.Character.UPPPlayerIntegration
   characterController: {fileID: 6247552042706634217}
   cameraController: {fileID: 0}
+  cameraRigPrefab: {fileID: 5287920855167471863, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
+  createCameraIfMissing: 1

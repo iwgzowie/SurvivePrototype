@@ -12,8 +12,16 @@ namespace UPP.Runtime.Character
     public sealed class UPPPlayerIntegration : MonoBehaviour
     {
         [SerializeField] private UPPCharacterMovementComponent characterController;
+
+        [Header("Cámara")]
         [SerializeField] private UPPTPSCameraController cameraController;
+        [SerializeField, Tooltip("Prefab del rig UPP que se crea cuando la escena no tiene una cámara compatible.")]
+        private UPPTPSCameraController cameraRigPrefab;
+        [SerializeField, Tooltip("Crea el rig configurado si no existe una cámara UPP en la escena.")]
+        private bool createCameraIfMissing = true;
+
         private bool runtimeReferencesBound;
+        private bool missingCameraPrefabReported;
 
         private void Reset()
         {
@@ -22,7 +30,7 @@ namespace UPP.Runtime.Character
 
         private void Awake()
         {
-            ResolveReferences();
+            EnsureCameraController();
         }
 
         private void Start()
@@ -50,23 +58,24 @@ namespace UPP.Runtime.Character
 
         public void BindRuntimeReferences()
         {
-            ResolveReferences();
+            EnsureCameraController();
             if (characterController == null || cameraController == null)
             {
                 return;
             }
 
-            if (cameraController != null)
-            {
-                cameraController.InputAsset = characterController.Inputs;
-                cameraController.characterTarget = characterController;
-                cameraController.TargetToFollow =
-                    characterController.HumanoidSpine != null
-                        ? characterController.HumanoidSpine
-                        : transform;
-            }
+            cameraController.InputAsset = characterController.Inputs;
+            cameraController.characterTarget = characterController;
+            cameraController.TargetToFollow =
+                characterController.HumanoidSpine != null
+                    ? characterController.HumanoidSpine
+                    : transform;
+            characterController.MyPivotCamera = cameraController;
 
             UnityEngine.Camera gameplayCamera = cameraController.mCamera;
+            gameplayCamera ??=
+                cameraController.GetComponentInChildren<UnityEngine.Camera>(true);
+            cameraController.mCamera = gameplayCamera;
             if (gameplayCamera == null)
             {
                 return;
@@ -74,7 +83,8 @@ namespace UPP.Runtime.Character
 
             UPPAimTrace aimTrace =
                 gameplayCamera.GetComponent<UPPAimTrace>();
-            aimTrace?.Configure(gameplayCamera, transform);
+            aimTrace ??= gameplayCamera.gameObject.AddComponent<UPPAimTrace>();
+            aimTrace.Configure(gameplayCamera, transform);
 
             UPPIKCharacterComponent inverseKinematics =
                 characterController.GetComponent<UPPIKCharacterComponent>();
@@ -82,10 +92,9 @@ namespace UPP.Runtime.Character
 
             UPPDebugCrosshair crosshair =
                 gameplayCamera.GetComponent<UPPDebugCrosshair>();
-            if (crosshair != null && aimTrace != null)
-            {
-                crosshair.Configure(aimTrace, cameraController);
-            }
+            crosshair ??=
+                gameplayCamera.gameObject.AddComponent<UPPDebugCrosshair>();
+            crosshair.Configure(aimTrace, cameraController);
 
             UPPGizmosDebugComponent debugComponent =
                 characterController.GetComponent<UPPGizmosDebugComponent>();
@@ -102,6 +111,43 @@ namespace UPP.Runtime.Character
                 cameraController =
                     UnityEngine.Camera.main.GetComponentInParent<UPPTPSCameraController>();
             }
+
+            cameraController ??=
+                FindFirstObjectByType<UPPTPSCameraController>();
+        }
+
+        private void EnsureCameraController()
+        {
+            ResolveReferences();
+            if (cameraController != null || !createCameraIfMissing)
+            {
+                return;
+            }
+
+            if (cameraRigPrefab == null)
+            {
+                if (!missingCameraPrefabReported)
+                {
+                    Debug.LogError(
+                        "No se encontró una cámara UPP y el prefab del rig no está asignado.",
+                        this);
+                    missingCameraPrefabReported = true;
+                }
+
+                return;
+            }
+
+            Transform followTarget =
+                characterController != null
+                && characterController.HumanoidSpine != null
+                    ? characterController.HumanoidSpine
+                    : transform;
+            cameraController = Instantiate(
+                cameraRigPrefab,
+                followTarget.position,
+                transform.rotation);
+            cameraController.name = cameraRigPrefab.name;
+            missingCameraPrefabReported = false;
         }
     }
 }
