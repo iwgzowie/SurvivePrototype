@@ -5,24 +5,24 @@ using UnityEngine.AI;
 
 public class EnemyHealth : MonoBehaviour
 {
-    [Header("Health Settings")]
+    //Helth Settings
     [SerializeField] private float maxHealth = 100f;
     [SerializeField] private float currentHealth;
 
-    [Header("Death Settings")]
+    //Death Settings
     [SerializeField] private float destroyDelay = 2.5f;
 
-    [Header("Visual Feedback (Flash)")]
+    //Visual Feedback (Flash)
     [SerializeField] private Renderer meshRenderer; // Puede ser MeshRenderer o SkinnedMeshRenderer
     [SerializeField] private Color hitColor = Color.red;
     [SerializeField] private float flashDuration = 0.12f;
     private Material[] originalMaterials;
     private Coroutine flashCoroutine;
 
-    [Header("Particle Feedback")]
+    //Particle Feedback
     [SerializeField] private GameObject hitParticlePrefab;
 
-    [Header("Audio Feedback")]
+    //Audio Feedback
     [SerializeField] private AudioSource audioSource;
     [SerializeField] private AudioClip[] hitSounds;
     [SerializeField] private AudioClip deathSound;
@@ -77,21 +77,27 @@ public class EnemyHealth : MonoBehaviour
         {
             StopCoroutine(flashCoroutine);
         }
+
         flashCoroutine = StartCoroutine(HitFlashRoutine());
     }
 
     private IEnumerator HitFlashRoutine()
     {
-        foreach (var mat in meshRenderer.materials)
+        Material[] mats = meshRenderer.sharedMaterials;
+
+        for (int i = 0; i < mats.Length; i++)
         {
-            mat.color = hitColor;
+            mats[i].color = hitColor;
         }
 
         yield return new WaitForSeconds(flashDuration);
 
-        for (int i = 0; i < meshRenderer.materials.Length; i++)
+        for (int i = 0; i < mats.Length; i++)
         {
-            meshRenderer.materials[i].color = originalMaterials[i].color;
+            if (i < originalMaterials.Length && originalMaterials[i] != null)
+            {
+                mats[i].color = originalMaterials[i].color;
+            }
         }
 
         flashCoroutine = null;
@@ -126,8 +132,8 @@ public class EnemyHealth : MonoBehaviour
         }
 
         // Desactivar componentes para evitar bloqueos y acciones residuales
-        if (TryGetComponent<NavMeshAgent>(out var agent)) agent.enabled = false;
-        if (TryGetComponent<EnemyAI>(out var ai)) ai.enabled = false;
+        if(TryGetComponent<NavMeshAgent>(out var agent)) agent.enabled = false;
+        if (TryGetComponent<EnemyBaseController>(out var controller)) controller.enabled = false;
         if (TryGetComponent<Collider>(out var col)) col.enabled = false;
 
         // animación de muerte si existe
