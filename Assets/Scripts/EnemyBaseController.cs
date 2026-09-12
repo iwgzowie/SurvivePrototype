@@ -36,6 +36,10 @@ public class EnemyBaseController : MonoBehaviour
     [SerializeField] protected List<Transform> patrolPoints = new List<Transform>();
     [SerializeField] protected float waitTimeAtPoint = 1.5f;
 
+    //Random Patrol Settings
+    [SerializeField] protected bool useRandomPatrol = true;
+    [SerializeField] protected float randomPatrolRadius = 5f;
+
     //Control Interno Patrol
     private int currentPatrolIndex = 0;
     private float waitTimer = 0f;
@@ -150,11 +154,24 @@ public class EnemyBaseController : MonoBehaviour
         }
     }
 
-    //Comportamientos Virtuales Overrideables
+    protected Vector3 GetRandomNavMeshPoint(Vector3 center, float radius)
+    {
+        Vector3 randomDirection = Random.insideUnitSphere * radius;
+        randomDirection += center;
 
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(randomDirection, out hit, radius, NavMesh.AllAreas))
+        {
+            return hit.position;
+        }
+
+        return center;
+    }
+
+    //Comportamientos Virtuales Overrideables
     protected virtual void ExecuteIdleBehavior()
     {
-        if (patrolPoints.Count == 0 || !agent.isOnNavMesh) return;
+        if (!agent.isOnNavMesh) return;
 
         if (isWaiting)
         {
@@ -164,20 +181,21 @@ public class EnemyBaseController : MonoBehaviour
             {
                 isWaiting = false;
                 waitTimer = 0f;
-                currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Count; 
-                SetNextPatrolDestination(); 
+
+                if (!useRandomPatrol && patrolPoints.Count > 0)
+                {
+                    currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Count;
+                }
+
+                SetNextPatrolDestination();
             }
             return;
         }
 
-        Transform targetPoint = patrolPoints[currentPatrolIndex];
-        if (targetPoint != null)
+        if (!agent.pathPending && agent.remainingDistance <= 0.8f)
         {
-            if (!agent.pathPending && agent.remainingDistance <= 0.8f)
-            {
-                isWaiting = true;
-                agent.isStopped = true;
-            }
+            isWaiting = true;
+            agent.isStopped = true;
         }
     }
     protected virtual void ExecuteChasingBehavior()
@@ -249,9 +267,17 @@ public class EnemyBaseController : MonoBehaviour
         isAttacking = false;
     }
 
-    private void SetNextPatrolDestination()
+    protected virtual void SetNextPatrolDestination()
     {
-        if (patrolPoints.Count > 0 && patrolPoints[currentPatrolIndex] != null && agent.isOnNavMesh)
+        if (!agent.isOnNavMesh) return;
+
+        if (useRandomPatrol)
+        {
+            agent.isStopped = false;
+            Vector3 newDestination = GetRandomNavMeshPoint(transform.position, randomPatrolRadius);
+            agent.SetDestination(newDestination);
+        }
+        else if (patrolPoints.Count > 0 && patrolPoints[currentPatrolIndex] != null)
         {
             agent.isStopped = false;
             agent.SetDestination(patrolPoints[currentPatrolIndex].position);
