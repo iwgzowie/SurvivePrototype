@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
@@ -28,6 +29,8 @@ public class EnemyAI : MonoBehaviour
     [Header("Attack Settings")]
     [SerializeField] private float attackDamage = 15f;
     [SerializeField] private float attackCooldown = 1.2f;
+    [SerializeField] private float attackWindupTime = 0.4f; // Tiempo de aviso/preparación
+    [SerializeField] private float hitTolerance = 0.5f;     // Margen de tolerancia al impactar
 
     // Variables privadas de control
     private NavMeshAgent agent;
@@ -36,6 +39,8 @@ public class EnemyAI : MonoBehaviour
     private float waitTimer = 0f;
     private bool isWaiting = false;
     private float lastAttackTime;
+    private bool isAttacking = false;
+    private Coroutine attackCoroutine;
 
     private void Awake()
     {
@@ -59,8 +64,10 @@ public class EnemyAI : MonoBehaviour
 
     private void Update()
     {
+        // Cancelar ataque si el jugador no existe o muere
         if (player == null || (playerHealth != null && playerHealth.IsDead))
         {
+            CancelCurrentAttack();
             currentState = EnemyState.Idle;
             PatrolBehavior();
             return;
@@ -87,6 +94,8 @@ public class EnemyAI : MonoBehaviour
 
     private void CheckStateTransitions(float distanceToPlayer)
     {
+        EnemyState previousState = currentState;
+
         if (distanceToPlayer <= attackRange)
         {
             currentState = EnemyState.Attack;
@@ -99,13 +108,20 @@ public class EnemyAI : MonoBehaviour
         {
             currentState = EnemyState.Idle;
         }
+        // Si acaba de salir de persecución o ataque y vuelve a patrullar
+        if (previousState != EnemyState.Idle && currentState == EnemyState.Idle)
+        {
+            CancelCurrentAttack();
+            isWaiting = false;
+            waitTimer = 0f;
+            SetNextPatrolDestination(); // <-- Reasigna la ruta hacia el punto de patrulla
+        }
     }
 
     private void PatrolBehavior()
     {
         if (patrolPoints.Count == 0 || !agent.isOnNavMesh) return;
 
-        // Si está esperando en un punto
         if (isWaiting)
         {
             agent.isStopped = true;
@@ -123,12 +139,10 @@ public class EnemyAI : MonoBehaviour
 
         agent.isStopped = false;
 
-        // Comprobación por distancia directa al transform objetivo
         Transform targetPoint = patrolPoints[currentPatrolIndex];
         if (targetPoint != null)
         {
             float distanceToPoint = Vector3.Distance(transform.position, targetPoint.position);
-
             if (distanceToPoint <= agent.stoppingDistance + 0.5f)
             {
                 isWaiting = true;
@@ -143,6 +157,28 @@ public class EnemyAI : MonoBehaviour
             agent.isStopped = false;
             agent.SetDestination(patrolPoints[currentPatrolIndex].position);
         }
+    }
+
+    private void SetClosestPatrolDestination()
+    {
+        if (patrolPoints.Count == 0 || !agent.isOnNavMesh) return;
+
+        int closestIndex = 0;
+        float minDistance = Mathf.Infinity;
+
+        for (int i = 0; i < patrolPoints.Count; i++)
+        {
+            if (patrolPoints[i] == null) continue;
+            float dist = Vector3.Distance(transform.position, patrolPoints[i].position);
+            if (dist < minDistance)
+            {
+                minDistance = dist;
+                closestIndex = i;
+            }
+        }
+
+        currentPatrolIndex = closestIndex;
+        SetNextPatrolDestination();
     }
 
     private void ChaseBehavior()
@@ -168,20 +204,52 @@ public class EnemyAI : MonoBehaviour
             transform.rotation = Quaternion.LookRotation(direction);
         }
 
-        if (Time.time >= lastAttackTime + attackCooldown)
+        if (!isAttacking && Time.time >= lastAttackTime + attackCooldown)
         {
             lastAttackTime = Time.time;
-            PerformAttack();
+            attackCoroutine = StartCoroutine(AttackRoutine());
         }
     }
 
-    private void PerformAttack()
+    private IEnumerator AttackRoutine()
     {
-        Debug.Log("¡Enemigo atacando!");
-        if (playerHealth != null && !playerHealth.IsDead)
+        isAttacking = true;
+
+        // Preparación / Anticipación
+        Debug.Log("¡Enemigo cargando ataque!");
+        // GetComponent<Animator>()?.SetTrigger("Attack");
+
+        yield return new WaitForSeconds(attackWindupTime);
+
+        // Validación de rango al momento de impactar
+        if (player != null && playerHealth != null && !playerHealth.IsDead)
         {
-            playerHealth.TakeDamage(attackDamage);
+            float currentDistance = Vector3.Distance(transform.position, player.position);
+
+            if (currentDistance <= attackRange + hitTolerance)
+            {
+                Debug.Log("¡Impacto conectado!");
+                playerHealth.TakeDamage(attackDamage);
+            }
+            else
+            {
+                Debug.Log("¡El jugador esquivó el ataque!");
+            }
         }
+
+        isAttacking = false;
+        attackCoroutine = null;
+    }
+
+    private void CancelCurrentAttack()
+    {
+        if (attackCoroutine != null)
+        {
+            StopCoroutine(attackCoroutine);
+            attackCoroutine = null;
+        }
+
+        isAttacking = false;
     }
 
     private void OnDrawGizmosSelected()
