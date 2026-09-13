@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: e3d8dedaae83dcd469b462af59340e6f
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - enemyPrefab: {instanceID: 0}
+  - chasingPrefab: {fileID: 1903332982048016842, guid: f1f216d65d10e104d92da7eb1d6624bc, type: 3}
+  - chasingRangedPrefab: {fileID: 1903332982048016842, guid: b0144a581c4fe32479ac4928f15c0629, type: 3}
+  - patrolPrefab: {fileID: 1903332982048016842, guid: c8c1715a2d5349b41b6b2656cce1d8cd, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
