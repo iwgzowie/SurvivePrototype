@@ -3202,6 +3202,7 @@ GameObject:
   - component: {fileID: 8293235766326385339}
   - component: {fileID: 3785814445904926093}
   - component: {fileID: 7414056755420331258}
+  - component: {fileID: 6448202024984462170}
   m_Layer: 9
   m_Name: UPPPlayer
   m_TagString: Player
@@ -3560,3 +3561,57 @@ MonoBehaviour:
   cameraController: {fileID: 0}
   cameraRigPrefab: {fileID: 5287920855167471863, guid: c6ae8d50d86f1ef478cbc404f08e26b8, type: 3}
   createCameraIfMissing: 1
+--- !u!114 &6448202024984462170
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9176596690551158489}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a371c8c94a5d47d6a6b40a6b0c97a915, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::Survive.Combat.PlayerWeaponController
+  movement: {fileID: 6247552042706634217}
+  playerHealth: {fileID: 0}
+  weaponSocket: {fileID: 3426510049237709489}
+  attachmentPositionOffset: {x: 0, y: 0, z: 0}
+  attachmentEulerOffset: {x: 0, y: 0, z: 0}
+  fallbackSocketLocalPosition: {x: 0.35, y: 1.25, z: 0.35}
+  fallbackSocketLocalEulerAngles: {x: 0, y: 0, z: 0}
+  alignWeaponWhileAiming: 1
+  fireAction:
+    m_Name: Fire
+    m_Type: 1
+    m_ExpectedControlType:
+    m_Id: d4d3b063-7a82-4db0-9cc7-2f7db3db448d
+    m_Processors:
+    m_Interactions:
+    m_SingletonActionBindings:
+    - m_Name:
+      m_Id: f3c25151-3f32-4c24-a44e-3238d638a430
+      m_Path: <Mouse>/leftButton
+      m_Interactions:
+      m_Processors:
+      m_Groups:
+      m_Action: Fire
+      m_Flags: 0
+    - m_Name:
+      m_Id: a1f03970-0f9b-452b-b012-1379727fbc8f
+      m_Path: <Gamepad>/rightTrigger
+      m_Interactions:
+      m_Processors:
+      m_Groups:
+      m_Action: Fire
+      m_Flags: 0
+    m_Flags: 0
+  hitMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  requireLockedCursor: 1
+  muzzleClearanceRadius: 0.025
+  showCrosshair: 1
+  crosshairColor: {r: 1, g: 1, b: 1, a: 1}
+  crosshairSize: 7
+  crosshairThickness: 2

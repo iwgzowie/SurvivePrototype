@@ -29,6 +29,9 @@ public class EnemyBaseController : MonoBehaviour
     [SerializeField] protected float hitTolerance = 0.5f;
     [SerializeField] protected float detectionRange = 6f;
 
+    [Header("Animation")]
+    [SerializeField, Min(0.01f)] protected float attackAnimationImpactTime = 0.5f;
+
     protected float lastAttackTime = 0f;
     protected bool isAttacking = false;
 
@@ -288,6 +291,8 @@ public class EnemyBaseController : MonoBehaviour
         if (animator != null && agent != null)
         {
             animator.SetFloat("Speed", agent.velocity.magnitude);
+            // El gesto y sus eventos acompañan al windup configurado por cada variante.
+            animator.SetFloat("AttackSpeed", attackAnimationImpactTime / Mathf.Max(.01f, attackWindupTime));
         }
     }
 

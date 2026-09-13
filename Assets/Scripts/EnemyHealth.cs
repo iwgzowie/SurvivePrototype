@@ -16,7 +16,7 @@ public class EnemyHealth : MonoBehaviour
     [SerializeField] private Renderer meshRenderer; // Puede ser MeshRenderer o SkinnedMeshRenderer
     [SerializeField] private Color hitColor = Color.red;
     [SerializeField] private float flashDuration = 0.12f;
-    private Material[] originalMaterials;
+    private Color[] originalColors;
     private Coroutine flashCoroutine;
 
     //Particle Feedback
@@ -45,7 +45,10 @@ public class EnemyHealth : MonoBehaviour
         // Cache de los materiales originales
         if (meshRenderer != null)
         {
-            originalMaterials = meshRenderer.materials;
+            Material[] materials = meshRenderer.materials;
+            originalColors = new Color[materials.Length];
+            for (int i = 0; i < materials.Length; i++)
+                originalColors[i] = materials[i].color;
         }
     }
 
@@ -94,9 +97,9 @@ public class EnemyHealth : MonoBehaviour
 
         for (int i = 0; i < mats.Length; i++)
         {
-            if (i < originalMaterials.Length && originalMaterials[i] != null)
+            if (i < originalColors.Length)
             {
-                mats[i].color = originalMaterials[i].color;
+                mats[i].color = originalColors[i];
             }
         }
 
@@ -136,9 +139,12 @@ public class EnemyHealth : MonoBehaviour
         if (TryGetComponent<EnemyBaseController>(out var controller)) controller.enabled = false;
         if (TryGetComponent<Collider>(out var col)) col.enabled = false;
 
-        // animación de muerte si existe
-        if (TryGetComponent<Animator>(out var anim))
+        // El Animator puede vivir en el modelo visual hijo del enemigo.
+        Animator anim = GetComponentInChildren<Animator>();
+        if (anim != null && anim.runtimeAnimatorController != null)
         {
+            anim.ResetTrigger("Attack");
+            anim.SetFloat("Speed", 0f);
             anim.SetTrigger("Die");
         }
 
