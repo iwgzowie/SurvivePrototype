@@ -57,7 +57,22 @@ namespace UPP.ThirdPersonController
 
         private void FixedUpdate()
         {
-            if (Time.timeScale == 0f || DisableAllMove)
+            if (Time.timeScale == 0f)
+            {
+                return;
+            }
+
+            // El sensado y las escrituras del cuerpo comparten el paso de física.
+            GroundCheck();
+            WallAHeadCheck();
+            if (!DisableAllMove)
+            {
+                StepCorrectionCalculation();
+                Rotate(HorizontalX, VerticalY);
+            }
+
+            UpdateCapsule();
+            if (DisableAllMove)
             {
                 return;
             }
@@ -74,17 +89,11 @@ namespace UPP.ThirdPersonController
                 return;
             }
 
-            GroundCheck();
-            WallAHeadCheck();
-
             if (!DisableAllMove)
             {
                 ControllerInputs();
-                StepCorrectionCalculation();
-                Rotate(HorizontalX, VerticalY);
             }
 
-            UpdateCapsule();
             Events.UpdateRuntimeEventsCallbacks(this);
         }
 

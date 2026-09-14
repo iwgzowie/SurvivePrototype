@@ -269,7 +269,9 @@ namespace UPP.ThirdPersonController.CameraSystems
 
 			if (SmoothMove)
 			{
-				transform.position = Vector3.Lerp(transform.position, TargetPosition, (Speed != 0) ? Speed * Time.fixedDeltaTime : CurrentCameraState.MovementSpeed * Time.fixedDeltaTime);
+				float followSpeed = Speed != 0 ? Speed : CurrentCameraState.MovementSpeed;
+				float blend = 1f - Mathf.Exp(-Mathf.Max(0f, followSpeed) * Time.deltaTime);
+				transform.position = Vector3.Lerp(transform.position, TargetPosition, blend);
 			}
 			else
 			{
@@ -282,7 +284,9 @@ namespace UPP.ThirdPersonController.CameraSystems
 			if (mCamera.transform.position != TargetPosition) { OnCameraMove(); }
 			if (SmoothMove)
 			{
-				mCamera.transform.position = Vector3.Lerp(transform.position, TargetPosition, (Speed != 0) ? Speed : CurrentCameraState.MovementSpeed * Time.fixedDeltaTime);
+				float followSpeed = Speed != 0 ? Speed : CurrentCameraState.MovementSpeed;
+				float blend = 1f - Mathf.Exp(-Mathf.Max(0f, followSpeed) * Time.deltaTime);
+				mCamera.transform.position = Vector3.Lerp(mCamera.transform.position, TargetPosition, blend);
 			}
 			else
 			{
@@ -322,8 +326,8 @@ namespace UPP.ThirdPersonController.CameraSystems
 			rotxtarget = Mathf.Clamp(rotxtarget, CurrentCameraState.MinRotation, CurrentCameraState.MaxRotation);
 
 			
-			rotX = Mathf.Lerp(rotX, rotxtarget, LerpSpeed * Time.fixedDeltaTime * (UseTimeScale ? Time.timeScale : 1));
-			rotY = Mathf.Lerp(rotY, rotytarget, LerpSpeed * Time.fixedDeltaTime * (UseTimeScale ? Time.timeScale : 1));
+			rotX = Mathf.Lerp(rotX, rotxtarget, LerpSpeed * (UseTimeScale ? Time.deltaTime : Time.unscaledDeltaTime));
+			rotY = Mathf.Lerp(rotY, rotytarget, LerpSpeed * (UseTimeScale ? Time.deltaTime : Time.unscaledDeltaTime));
 
 			
 			var rot = Quaternion.Euler(new Vector3(rotX, rotY, 0));

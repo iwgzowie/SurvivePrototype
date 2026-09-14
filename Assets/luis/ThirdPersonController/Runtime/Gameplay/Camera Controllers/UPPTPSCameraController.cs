@@ -3,6 +3,7 @@ using UnityEngine;
 
 namespace UPP.ThirdPersonController.CameraSystems
 {
+    [DefaultExecutionOrder(100)]
     [AddComponentMenu("UPP/Cámaras/Controlador de cámara en tercera persona")]
     public class UPPTPSCameraController : UPPCameraController
     {
@@ -117,20 +118,18 @@ namespace UPP.ThirdPersonController.CameraSystems
         }
 
         
-        protected virtual void FixedUpdate()
-        {
-            if (TargetToFollow != null)
-            {
-                SetPivotCameraPosition(GetCurrentCameraState.GetCameraPivotPosition(TargetToFollow), true);
-            }
-        }
-
-        
         protected virtual void LateUpdate()
         {
             if (mCamera == null)
             {
                 return;
+            }
+
+            // La pose interpolada y la animación ya están listas en este frame.
+            if (TargetToFollow != null)
+            {
+                SetPivotCameraPosition(
+                    GetCurrentCameraState.GetCameraPivotPosition(TargetToFollow), true);
             }
 
             SetCameraPosition(GetCurrentCameraState.GetCameraPosition(mCamera.transform), false);
@@ -202,8 +201,8 @@ namespace UPP.ThirdPersonController.CameraSystems
             }
             if (IsAutoRotationActivated == true)
             {
-                rotytarget = Mathf.LerpAngle(rotytarget, targetRotation.rotation.eulerAngles.y, HorizontalSpeed * Time.fixedDeltaTime);
-                rotxtarget = Mathf.LerpAngle(rotxtarget, 0, VerticalSpeed * Time.fixedDeltaTime);
+                rotytarget = Mathf.LerpAngle(rotytarget, targetRotation.rotation.eulerAngles.y, HorizontalSpeed * Time.deltaTime);
+                rotxtarget = Mathf.LerpAngle(rotxtarget, 0, VerticalSpeed * Time.deltaTime);
                 if (FollowUpTarget)
                 {
                     RotateCamera(RawMouseX, RawMouseY, upward: characterTarget == null ? TargetToFollow.up : characterTarget.transform.up);

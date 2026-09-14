@@ -1,45 +1,40 @@
+using System;
 using UnityEngine;
 
+[DisallowMultipleComponent]
 public class PlayerHealth : MonoBehaviour
 {
-    [Header("Health Settings")]
-    [SerializeField] private float maxHealth = 100f;
+    [Header("Salud")]
+    [SerializeField, Min(1f)] private float maxHealth = 100f;
     private float currentHealth;
 
     public bool IsDead { get; private set; }
+    public float CurrentHealth => currentHealth;
+    public float MaxHealth => maxHealth;
+    public event Action OnDeath;
 
     private void Awake()
     {
+        maxHealth = Mathf.Max(1f, maxHealth);
         currentHealth = maxHealth;
         IsDead = false;
     }
 
     public void TakeDamage(float amount)
     {
-        if (IsDead) return;
-
-        currentHealth -= amount;
-        currentHealth = Mathf.Clamp(currentHealth, 0, maxHealth);
-        Debug.Log($"Jugador recibió {amount} de daño. Vida restante: {currentHealth}");
-
-        if (currentHealth <= 0)
+        if (IsDead || amount <= 0f || float.IsNaN(amount) || float.IsInfinity(amount))
         {
-            Die();
+            return;
         }
-    }
 
-    private void Die()
-    {
+        currentHealth = Mathf.Max(0f, currentHealth - amount);
+        if (currentHealth > 0f)
+        {
+            return;
+        }
+
+        // La salud publica el resultado; la presentación y el bloqueo pertenecen al consumidor.
         IsDead = true;
-        Debug.Log("¡El jugador ha muerto!");
-
-        // Desactivar movimiento si usa PlayerController
-        if (TryGetComponent<PlayerController>(out var controller))
-        {
-            controller.enabled = false;
-        }
-
-        // Si usas CharacterController o Animator, desactívalos o dispara el trigger aquí:
-        // GetComponent<Animator>()?.SetTrigger("Die");
+        OnDeath?.Invoke();
     }
 }

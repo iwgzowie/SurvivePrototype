@@ -171,31 +171,6 @@ namespace Survive.Items
                 * worldRestRotation);
         }
 
-        private void OnTriggerEnter(Collider other)
-        {
-            TryPickUp(other);
-        }
-
-        private void OnTriggerStay(Collider other)
-        {
-            // También recoge un arma que se habilitó cuando el jugador ya estaba dentro.
-            TryPickUp(other);
-        }
-
-        private void TryPickUp(Collider other)
-        {
-            if (!isActiveAndEnabled || IsEquipped || itemType != ItemType.WeaponType)
-                return;
-
-            WeaponItem weapon = this as WeaponItem;
-            if (weapon == null)
-                return;
-
-            PlayerWeaponController receiver = other.GetComponentInParent<PlayerWeaponController>();
-            if (receiver != null && receiver.isActiveAndEnabled)
-                receiver.TryEquip(weapon);
-        }
-
         /// <summary>Equipa una sola vez; la pose se expresa en el espacio del socket.</summary>
         public bool TryAttach(Transform ownerRoot, Transform socket, Vector3 localPosition, Vector3 localEulerAngles)
         {

@@ -31,6 +31,7 @@ namespace UPP.ThirdPersonController
         public LayerMask GroundLayers;
         public float RaycastMaxDistance = 2f;
         public float RaycastHeight = 1f;
+        [Tooltip("Altura mínima del pie. También se respeta la distancia a la planta definida por el Avatar.")]
         public float FootHeight = 0.1f;
         public float MaxStepHeight = 0.6f;
         public bool UseDynamicFootPlacing = true;
@@ -39,7 +40,8 @@ namespace UPP.ThirdPersonController
         public bool SmoothTransitions = true;
         public float SpeedInTransition = 6f;
         public float SpeedOutTransition = 6f;
-        public float FootHeightMultiplier = 0.6f;
+        [Tooltip("Escala la elevación animada de la zancada. El valor 1 conserva el movimiento completo del clip.")]
+        public float FootHeightMultiplier = 1f;
         [Range(0f, 1f)] public float GlobalWeight = 1f;
         public float Radius = 0.1f;
 
@@ -87,27 +89,20 @@ namespace UPP.ThirdPersonController
         private RaycastHit bodyGroundHit;
         private Transform leftFoot;
         private Transform rightFoot;
-        private Transform leftFootUpperBase;
-        private Transform rightFootUpperBase;
-        private Transform leftFootTarget;
-        private Transform rightFootTarget;
-        private Vector3 smoothedLeftFootPosition;
-        private Vector3 smoothedRightFootPosition;
-        private Quaternion smoothedLeftFootRotation;
-        private Quaternion smoothedRightFootRotation;
-        private Vector3 unaffectedEulerAngles;
+        private readonly RaycastHit[] groundHits = new RaycastHit[32];
+        private float smoothedLeftGroundOffset;
+        private float smoothedRightGroundOffset;
+        private Quaternion smoothedLeftFootRotation = Quaternion.identity;
+        private Quaternion smoothedRightFootRotation = Quaternion.identity;
         private Vector3 unaffectedUpward;
-        private float leftFootHeight;
-        private float rightFootHeight;
-        private float animationLeftFootPositionY;
-        private float animationRightFootPositionY;
+        private float leftContactWeight;
+        private float rightContactWeight;
         private float transitionIKtoFKWeight;
         private float bodyPositionOffset;
         private float groundAngle;
         private float aimIKWeight;
         private float leanSpeed;
         private float lean;
-        private bool shouldApplyFootIK;
 
         public bool HasLeftFootHit => leftHit;
         public bool HasRightFootHit => rightHit;
@@ -125,13 +120,13 @@ namespace UPP.ThirdPersonController
         private void Awake()
         {
             ResolveReferences();
-            if (animator == null)
+            if (animator == null || !animator.isHuman)
             {
                 enabled = false;
                 return;
             }
 
-            RootBone ??= animator.GetBoneTransform(HumanBodyBones.Hips);
+            RootBone ??= animator.GetBoneTransform(HumanBodyBones.Spine);
         }
 
         private void Start()
@@ -139,55 +134,53 @@ namespace UPP.ThirdPersonController
             StartFootPlacement();
         }
 
-        private void Update()
-        {
-            if (movement == null)
-            {
-                return;
-            }
-
-            bool canPlaceFeet =
-                movement.IsGrounded
-                && !movement.IsJumping
-                && !movement.IsRolling
-                && !movement.IsProne;
-            shouldApplyFootIK = EnableFootPlacement && canPlaceFeet;
-            BlockBodyPositioning = !canPlaceFeet || movement.IsCrouched;
-            aimIKWeight = Mathf.MoveTowards(
-                aimIKWeight,
-                movement.FiringModeIK ? 1f : 0f,
-                AimIKTransitionSpeed * Time.deltaTime);
-        }
-
         private void LateUpdate()
         {
-            ApplyBodyLean();
+            // Consumir una sola vez la evaluación del Animator. No reutilizar una
+            // pose vieja entre ticks Fixed ni escribir el offset de la pelvis acá.
+            if (capturedLeanPose)
+            {
+                capturedLeanPose = false;
+                ApplyBodyLean();
+            }
         }
 
-        private void OnDestroy()
+        private void OnDisable()
         {
-            DestroyRuntimeHelper(leftFootTarget);
-            DestroyRuntimeHelper(rightFootTarget);
-            DestroyRuntimeHelper(leftFootUpperBase);
-            DestroyRuntimeHelper(rightFootUpperBase);
+            ResetPlacementState();
+            capturedLeanPose = false;
         }
 
         public void StartFootPlacement()
         {
-            ResolveFootDependencies();
-            started =
-                leftFoot != null
-                && rightFoot != null
-                && leftFootTarget != null
-                && rightFootTarget != null;
-
-            if (!started)
+            ResolveReferences();
+            if (GroundLayers.value == 0)
             {
-                return;
+                GroundLayers = LayerMask.GetMask("Default");
             }
 
-            leftFootTarget.position = leftFoot.position;
-            rightFootTarget.position = rightFoot.position;
+            started = animator != null && animator.isHuman;
+            if (started)
+            {
+                leftFoot = animator.GetBoneTransform(HumanBodyBones.LeftFoot);
+                rightFoot = animator.GetBoneTransform(HumanBodyBones.RightFoot);
+                started = leftFoot != null && rightFoot != null;
+            }
+
+            ResetPlacementState();
+        }
+
+        private void ResetPlacementState()
+        {
+            leftHit = rightHit = false;
+            leftHitPlaceBase = rightHitPlaceBase = bodyGroundHit = default;
+            smoothedLeftGroundOffset = smoothedRightGroundOffset = 0f;
+            smoothedLeftFootRotation = smoothedRightFootRotation = Quaternion.identity;
+            leftContactWeight = rightContactWeight = 0f;
+            LeftFootRotationWeight = RightFootRotationWeight = 0f;
+            LeftFootHeightFromGround = RightFootHeightFromGround = 0f;
+            transitionIKtoFKWeight = bodyPositionOffset = 0f;
+            TheresGroundBelow = false;
         }
 
         public Vector3 GetCalculatedAnimatorCenterOfMass()
@@ -207,359 +200,309 @@ namespace UPP.ThirdPersonController
             animatorController ??= GetComponent<UPPAnimatorControllerComponent>();
         }
 
-        private void ResolveFootDependencies()
+        private void OnAnimatorIK(int layerIndex)
         {
-            if (GroundLayers.value == 0)
-            {
-                GroundLayers = LayerMask.GetMask("Default");
-            }
-
             if (animator == null || !animator.isHuman)
             {
                 return;
             }
 
-            leftFoot ??= animator.GetBoneTransform(HumanBodyBones.LeftFoot);
-            rightFoot ??= animator.GetBoneTransform(HumanBodyBones.RightFoot);
-            if (leftFoot == null || rightFoot == null)
-            {
-                return;
-            }
-
-            smoothedLeftFootPosition =
-                leftFoot.position - transform.forward * 0.1f;
-            smoothedRightFootPosition =
-                rightFoot.position - transform.forward * 0.1f;
-            smoothedLeftFootRotation = leftFoot.rotation;
-            smoothedRightFootRotation = rightFoot.rotation;
-
-            leftFootTarget ??= CreateRuntimeHelper("Posición del pie izquierdo");
-            rightFootTarget ??= CreateRuntimeHelper("Posición del pie derecho");
-            leftFootUpperBase ??= CreateRuntimeHelper(
-                "Base superior del pie izquierdo",
-                leftFoot);
-            rightFootUpperBase ??= CreateRuntimeHelper(
-                "Base superior del pie derecho",
-                rightFoot);
-
-            leftFootTarget.SetPositionAndRotation(leftFoot.position, leftFoot.rotation);
-            rightFootTarget.SetPositionAndRotation(rightFoot.position, rightFoot.rotation);
-            leftFootUpperBase.SetPositionAndRotation(leftFoot.position, leftFoot.rotation);
-            rightFootUpperBase.SetPositionAndRotation(rightFoot.position, rightFoot.rotation);
-        }
-
-        private static Transform CreateRuntimeHelper(string objectName, Transform parent = null)
-        {
-            Transform helper = new GameObject(objectName).transform;
-            helper.SetParent(parent);
-            helper.gameObject.hideFlags = HideFlags.HideAndDontSave;
-            return helper;
-        }
-
-        private static void DestroyRuntimeHelper(Transform helper)
-        {
-            if (helper != null)
-            {
-                Destroy(helper.gameObject);
-            }
-        }
-
-        private void OnAnimatorIK(int layerIndex)
-        {
             int baseLayerIndex = animatorController != null
                 ? animatorController.Parameters.BaseLayerIndex
                 : 0;
-            if (layerIndex != baseLayerIndex || animator == null)
+            int footLayerIndex = baseLayerIndex;
+            if (animatorController != null)
+            {
+                int legsLayer = animatorController.Parameters.LegsLayerIndex;
+                // El controlador UPP tiene IKPass en Base y Legs. Resolver una
+                // sola vez, después de la capa que aporta la zancada de aim.
+                if (legsLayer > baseLayerIndex && legsLayer < animator.layerCount
+                    && animator.GetLayerWeight(legsLayer) > 0f)
+                {
+                    footLayerIndex = legsLayer;
+                }
+            }
+
+            if (layerIndex == baseLayerIndex && footLayerIndex != baseLayerIndex)
+            {
+                ClearFootWeights();
+                ApplyAimLookAt();
+            }
+
+            if (layerIndex != footLayerIndex)
             {
                 return;
             }
 
-            CaptureBodyLeanPose();
             ApplyFootPlacement();
-            ApplyAimLookAt();
+            if (footLayerIndex == baseLayerIndex)
+            {
+                ApplyAimLookAt();
+            }
+            capturedLeanPose = true;
+        }
+
+        private void ClearFootWeights()
+        {
+            animator.SetIKPositionWeight(AvatarIKGoal.LeftFoot, 0f);
+            animator.SetIKRotationWeight(AvatarIKGoal.LeftFoot, 0f);
+            animator.SetIKPositionWeight(AvatarIKGoal.RightFoot, 0f);
+            animator.SetIKRotationWeight(AvatarIKGoal.RightFoot, 0f);
         }
 
         private void ApplyFootPlacement()
         {
-            if (!started
-                || leftFoot == null
-                || rightFoot == null
-                || leftFootTarget == null
-                || rightFootTarget == null)
+            ClearFootWeights();
+            if (!started || leftFoot == null || rightFoot == null)
             {
                 return;
             }
 
-            bool useFootIK = shouldApplyFootIK
+            // GetIK devuelve la pose de ESTA evaluación antes de corregir la
+            // pelvis. Los Transform de los huesos pueden contener la pose resuelta
+            // anteriormente; no deben realimentar el siguiente objetivo.
+            Vector3 animatedLeft = animator.GetIKPosition(AvatarIKGoal.LeftFoot);
+            Vector3 animatedRight = animator.GetIKPosition(AvatarIKGoal.RightFoot);
+            Quaternion animatedLeftRotation = animator.GetIKRotation(AvatarIKGoal.LeftFoot);
+            Quaternion animatedRightRotation = animator.GetIKRotation(AvatarIKGoal.RightFoot);
+            Vector3 animatedBody = animator.bodyPosition;
+            AnimationYBodyPosition = animatedBody.y;
+
+            bool canPlaceFeet = movement != null
+                && movement.IsGrounded && !movement.IsJumping
+                && !movement.IsRolling && !movement.IsProne
                 && Vector3.Angle(transform.up, Vector3.up) <= 30f;
-            CalculateFootTargets(useFootIK);
-            AnimationYBodyPosition = animator.bodyPosition.y;
-
-            if (Vector3.Angle(transform.up, Vector3.up) < 40f)
-            {
-                ApplyBodyPlacement();
-            }
-
-            if (transitionIKtoFKWeight < 0.1f
-                || GlobalWeight < 0.01f
-                || !leftHit
-                || !rightHit)
-            {
-                return;
-            }
-
-            animationLeftFootPositionY = Mathf.Clamp01(
-                Mathf.Abs(transform.position.y - (leftFoot.position.y - FootHeight)));
-            animationRightFootPositionY = Mathf.Clamp01(
-                Mathf.Abs(transform.position.y - (rightFoot.position.y - FootHeight)));
-
-            ApplyFootGoal(
-                AvatarIKGoal.LeftFoot,
-                leftFoot,
-                smoothedLeftFootPosition,
-                smoothedLeftFootRotation,
-                LeftFootRotationWeight,
-                leftHit,
-                leftHitPlaceBase);
-            ApplyFootGoal(
-                AvatarIKGoal.RightFoot,
-                rightFoot,
-                smoothedRightFootPosition,
-                smoothedRightFootRotation,
-                RightFootRotationWeight,
-                rightHit,
-                rightHitPlaceBase);
-        }
-
-        private void CalculateFootTargets(bool useFootIK)
-        {
-            if (UseDynamicFootPlacing)
-            {
-                LeftFootHeightFromGround =
-                    FootHeightMultiplier * animationLeftFootPositionY;
-                RightFootHeightFromGround =
-                    FootHeightMultiplier * animationRightFootPositionY;
-            }
-            else
-            {
-                LeftFootHeightFromGround = Mathf.Lerp(
-                    LeftFootHeightFromGround,
-                    animator.GetFloat(LeftFootHeightCurveName) * 0.5f,
-                    20f * Time.deltaTime);
-                RightFootHeightFromGround = Mathf.Lerp(
-                    RightFootHeightFromGround,
-                    animator.GetFloat(RightFootHeightCurveName) * 0.5f,
-                    20f * Time.deltaTime);
-            }
-
-            leftHit = Physics.SphereCast(
-                leftFoot.position
-                + transform.up * RaycastHeight
-                + leftFootUpperBase.forward * 0.12f,
-                Radius,
-                -transform.up,
-                out leftHitPlaceBase,
-                RaycastMaxDistance,
-                GroundLayers,
-                QueryTriggerInteraction.Ignore);
-            rightHit = Physics.SphereCast(
-                rightFoot.position
-                + transform.up * RaycastHeight
-                + rightFootUpperBase.forward * 0.12f,
-                Radius,
-                -transform.up,
-                out rightHitPlaceBase,
-                RaycastMaxDistance,
-                GroundLayers,
-                QueryTriggerInteraction.Ignore);
-
-            UpdateFootTarget(
-                leftFoot,
-                leftFootTarget,
-                leftHit,
-                leftHitPlaceBase,
-                LeftFootHeightFromGround,
-                ref leftFootHeight,
-                ref smoothedLeftFootPosition,
-                ref smoothedLeftFootRotation,
-                ref LeftFootRotationWeight,
-                15f);
-            UpdateFootTarget(
-                rightFoot,
-                rightFootTarget,
-                rightHit,
-                rightHitPlaceBase,
-                RightFootHeightFromGround,
-                ref rightFootHeight,
-                ref smoothedRightFootPosition,
-                ref smoothedRightFootRotation,
-                ref RightFootRotationWeight,
-                20f);
-
-            float targetWeight = useFootIK ? 1f : 0f;
-            transitionIKtoFKWeight = SmoothTransitions
-                ? Mathf.MoveTowards(
-                    transitionIKtoFKWeight,
-                    targetWeight,
-                    (useFootIK ? SpeedInTransition : SpeedOutTransition)
+            BlockBodyPositioning = !canPlaceFeet || (movement != null && movement.IsCrouched);
+            float targetWeight = EnableFootPlacement && canPlaceFeet ? 1f : 0f;
+            transitionIKtoFKWeight = SmoothTransitions && canPlaceFeet
+                ? Mathf.MoveTowards(transitionIKtoFKWeight, targetWeight,
+                    Mathf.Max(0f, targetWeight > 0f ? SpeedInTransition : SpeedOutTransition)
                     * Time.deltaTime)
                 : targetWeight;
-        }
+            float weight = Mathf.Clamp01(GlobalWeight) * transitionIKtoFKWeight;
 
-        private void UpdateFootTarget(
-            Transform foot,
-            Transform target,
-            bool hasHit,
-            RaycastHit hit,
-            float heightFromGround,
-            ref float calculatedFootHeight,
-            ref Vector3 smoothedPosition,
-            ref Quaternion smoothedRotation,
-            ref float rotationWeight,
-            float positionSpeed)
-        {
-            calculatedFootHeight = Mathf.Clamp(
-                FootHeight
-                - Vector3.SignedAngle(
-                    foot.up,
-                    transform.up,
-                    transform.right) / 500f,
-                -0.2f,
-                0.2f);
-
-            if (hasHit)
+            if (!canPlaceFeet || weight <= 0f)
             {
-                target.position = hit.point;
-                target.rotation =
-                    Quaternion.FromToRotation(transform.up, hit.normal)
-                    * transform.rotation;
-                Vector3 desiredPosition = hit.point.y < transform.position.y + MaxStepHeight
-                    ? target.position
-                        + hit.normal * calculatedFootHeight
-                        + transform.up * heightFromGround
-                    : transform.position
-                        + transform.up * (FootHeight + heightFromGround);
-                smoothedPosition = Vector3.Lerp(
-                    smoothedPosition,
-                    desiredPosition,
-                    positionSpeed * Time.deltaTime);
-
-                Vector3 rotationAxis = Vector3.Cross(Vector3.up, hit.normal);
-                float rotationAngle = Vector3.Angle(Vector3.up, hit.normal);
-                Quaternion desiredRotation =
-                    Quaternion.AngleAxis(rotationAngle * GlobalWeight, rotationAxis);
-                smoothedRotation = Quaternion.Lerp(
-                    smoothedRotation,
-                    desiredRotation,
-                    20f * Time.deltaTime);
-            }
-            else
-            {
-                target.position = foot.position;
-                smoothedPosition = foot.position;
-            }
-
-            rotationWeight = Mathf.Lerp(
-                rotationWeight,
-                heightFromGround < 0.3f ? 1f : 0f,
-                (heightFromGround < 0.3f ? 8f : 1f) * Time.deltaTime);
-        }
-
-        private void ApplyFootGoal(
-            AvatarIKGoal goal,
-            Transform foot,
-            Vector3 position,
-            Quaternion rotation,
-            float rotationWeight,
-            bool hasHit,
-            RaycastHit hit)
-        {
-            if (!hasHit || hit.point.y >= transform.position.y + RaycastHeight)
-            {
+                ResetPlacementState();
+                NewAnimationBodyPosition = animatedBody;
+                LastBodyPositionY = animatedBody.y;
                 return;
             }
 
-            animator.SetIKPosition(
-                goal,
-                new Vector3(foot.position.x, position.y, foot.position.z));
-            animator.SetIKPositionWeight(
-                goal,
-                GlobalWeight * transitionIKtoFKWeight);
-            animator.SetIKRotationWeight(
-                goal,
-                GlobalWeight * transitionIKtoFKWeight * rotationWeight);
-            animator.SetIKRotation(
-                goal,
-                rotation * animator.GetIKRotation(goal));
+            float leftSoleHeight = Mathf.Max(0f, FootHeight, animator.leftFeetBottomHeight);
+            float rightSoleHeight = Mathf.Max(0f, FootHeight, animator.rightFeetBottomHeight);
+            LeftFootHeightFromGround = GetAnimatedFootLift(
+                animatedLeft, leftSoleHeight, LeftFootHeightCurveName);
+            RightFootHeightFromGround = GetAnimatedFootLift(
+                animatedRight, rightSoleHeight, RightFootHeightCurveName);
+
+            bool hadLeftHit = leftHit;
+            bool hadRightHit = rightHit;
+            leftHit = TryGroundHit(animatedLeft + Vector3.up * Mathf.Max(0f, RaycastHeight),
+                Radius, RaycastMaxDistance, animatedLeft, out leftHitPlaceBase);
+            rightHit = TryGroundHit(animatedRight + Vector3.up * Mathf.Max(0f, RaycastHeight),
+                Radius, RaycastMaxDistance, animatedRight, out rightHitPlaceBase);
+
+            UpdateFootTarget(animatedLeft, leftHit, hadLeftHit, leftHitPlaceBase,
+                LeftFootHeightFromGround, ref smoothedLeftGroundOffset,
+                ref smoothedLeftFootRotation, ref leftContactWeight,
+                ref LeftFootRotationWeight);
+            UpdateFootTarget(animatedRight, rightHit, hadRightHit, rightHitPlaceBase,
+                RightFootHeightFromGround, ref smoothedRightGroundOffset,
+                ref smoothedRightFootRotation, ref rightContactWeight,
+                ref RightFootRotationWeight);
+
+            ApplyBodyPlacement(animatedBody, weight);
+            ApplyFootGoal(AvatarIKGoal.LeftFoot, animatedLeft, animatedLeftRotation,
+                leftSoleHeight, LeftFootHeightFromGround, leftHit, leftHitPlaceBase,
+                smoothedLeftGroundOffset, smoothedLeftFootRotation,
+                leftContactWeight * weight, LeftFootRotationWeight);
+            ApplyFootGoal(AvatarIKGoal.RightFoot, animatedRight, animatedRightRotation,
+                rightSoleHeight, RightFootHeightFromGround, rightHit, rightHitPlaceBase,
+                smoothedRightGroundOffset, smoothedRightFootRotation,
+                rightContactWeight * weight, RightFootRotationWeight);
         }
 
-        private void ApplyBodyPlacement()
+        private float GetAnimatedFootLift(Vector3 animatedPosition, float soleHeight, string curveName)
         {
-            Physics.SphereCast(
-                transform.position + transform.up * RaycastDistanceToGround,
-                GroundCheckRadius,
-                -transform.up,
-                out bodyGroundHit,
-                RaycastDistanceToGround + 0.2f,
-                GroundLayers,
+            float lift = Mathf.Max(0f, animatedPosition.y - transform.position.y - soleHeight);
+            if (UseDynamicFootPlacing)
+            {
+                // Con 1 la corrección de terreno preserva la zancada completa;
+                // valores menores son una reducción elegida explícitamente.
+                return lift * Mathf.Max(0f, FootHeightMultiplier);
+            }
+
+            if (!string.IsNullOrEmpty(curveName))
+            {
+                foreach (AnimatorControllerParameter parameter in animator.parameters)
+                {
+                    if (parameter.name == curveName && parameter.type == AnimatorControllerParameterType.Float)
+                    {
+                        return Mathf.Max(lift, animator.GetFloat(curveName) * 0.5f);
+                    }
+                }
+            }
+            return lift;
+        }
+
+        private bool TryGroundHit(Vector3 origin, float radius, float distance,
+            Vector3 footPosition, out RaycastHit closestHit)
+        {
+            closestHit = default;
+            int count = Physics.SphereCastNonAlloc(origin, Mathf.Max(0.001f, radius),
+                Vector3.down, groundHits, Mathf.Max(0f, distance), GroundLayers,
                 QueryTriggerInteraction.Ignore);
-            TheresGroundBelow = bodyGroundHit.collider != null;
-            groundAngle = TheresGroundBelow
-                ? Vector3.Angle(Vector3.up, bodyGroundHit.normal)
+            RaycastHit[] hits = groundHits;
+            if (count == groundHits.Length)
+            {
+                // Sólo el caso saturado necesita una consulta con asignación;
+                // la consulta habitual no genera basura por pie/frame.
+                hits = Physics.SphereCastAll(origin, Mathf.Max(0.001f, radius),
+                    Vector3.down, Mathf.Max(0f, distance), GroundLayers,
+                    QueryTriggerInteraction.Ignore);
+                count = hits.Length;
+            }
+
+            float closestDistance = float.PositiveInfinity;
+            float maxAngle = movement != null ? Mathf.Clamp(movement.MaxWalkableAngle, 0f, 75f) : 45f;
+            float lowestOffset = -Mathf.Max(0f, MaxStepHeight, MaxBodyCrouchHeight);
+            for (int i = 0; i < count; i++)
+            {
+                RaycastHit hit = hits[i];
+                if (hit.collider == null || hit.collider.transform.IsChildOf(transform)
+                    || Vector3.Angle(Vector3.up, hit.normal) > maxAngle)
+                {
+                    continue;
+                }
+
+                float height = GetGroundHeight(hit, footPosition) - transform.position.y;
+                if (height > Mathf.Max(0f, MaxStepHeight) || height < lowestOffset
+                    || hit.distance >= closestDistance)
+                {
+                    continue;
+                }
+
+                closestHit = hit;
+                closestDistance = hit.distance;
+            }
+            return closestHit.collider != null;
+        }
+
+        private static float GetGroundHeight(RaycastHit hit, Vector3 atPosition)
+        {
+            // SphereCast puede tocar al costado en una pendiente. Proyectar el
+            // plano al X/Z del pie evita confundir ese punto con su altura de apoyo.
+            return hit.point.y - (hit.normal.x * (atPosition.x - hit.point.x)
+                + hit.normal.z * (atPosition.z - hit.point.z)) / Mathf.Max(0.001f, hit.normal.y);
+        }
+
+        private static float SmoothingFactor(float speed)
+        {
+            return 1f - Mathf.Exp(-Mathf.Max(0f, speed) * Time.deltaTime);
+        }
+
+        private void UpdateFootTarget(Vector3 animatedPosition, bool hasHit, bool hadHit,
+            RaycastHit hit, float lift, ref float smoothedGroundOffset,
+            ref Quaternion smoothedRotation, ref float contactWeight, ref float rotationWeight)
+        {
+            if (!hasHit)
+            {
+                smoothedGroundOffset = 0f;
+                smoothedRotation = Quaternion.identity;
+                contactWeight = rotationWeight = 0f;
+                return;
+            }
+
+            float groundOffset = GetGroundHeight(hit, animatedPosition) - transform.position.y;
+            smoothedGroundOffset = hadHit
+                ? Mathf.Lerp(smoothedGroundOffset, groundOffset, SmoothingFactor(20f))
+                : groundOffset;
+            smoothedRotation = Quaternion.Slerp(smoothedRotation,
+                Quaternion.FromToRotation(Vector3.up, hit.normal), SmoothingFactor(20f));
+            contactWeight = SmoothTransitions
+                ? Mathf.MoveTowards(contactWeight, 1f, Mathf.Max(0f, SpeedInTransition) * Time.deltaTime)
+                : 1f;
+            rotationWeight = Mathf.Lerp(rotationWeight, 1f - Mathf.Clamp01(lift / 0.3f),
+                SmoothingFactor(8f));
+        }
+
+        private void ApplyFootGoal(AvatarIKGoal goal, Vector3 animatedPosition,
+            Quaternion animatedRotation, float soleHeight, float lift, bool hasHit,
+            RaycastHit hit, float groundOffset, Quaternion rotation, float weight, float rotationWeight)
+        {
+            if (!hasHit || weight <= 0f)
+            {
+                return; // ClearFootWeights ya dejó este pie en FK.
+            }
+
+            Vector3 position = animatedPosition;
+            float slopeSoleHeight = soleHeight / Mathf.Max(0.25f, hit.normal.y);
+            position.y = transform.position.y + groundOffset
+                + Mathf.Max(slopeSoleHeight, soleHeight + lift);
+            animator.SetIKPosition(goal, position);
+            animator.SetIKPositionWeight(goal, weight);
+            animator.SetIKRotation(goal, rotation * animatedRotation);
+            animator.SetIKRotationWeight(goal, weight * rotationWeight);
+        }
+
+        private void ApplyBodyPlacement(Vector3 animatedBody, float weight)
+        {
+            TheresGroundBelow = TryGroundHit(
+                transform.position + Vector3.up * Mathf.Max(0f, RaycastDistanceToGround),
+                GroundCheckRadius, RaycastDistanceToGround + 0.2f,
+                transform.position, out bodyGroundHit);
+            groundAngle = TheresGroundBelow ? Vector3.Angle(Vector3.up, bodyGroundHit.normal) : 0f;
+
+            float targetOffset = 0f;
+            if (EnableDynamicBodyPlacing && !BlockBodyPositioning)
+            {
+                if (leftHit)
+                {
+                    targetOffset = Mathf.Min(targetOffset, smoothedLeftGroundOffset);
+                }
+                if (rightHit)
+                {
+                    targetOffset = Mathf.Min(targetOffset, smoothedRightGroundOffset);
+                }
+                targetOffset = Mathf.Max(targetOffset, -Mathf.Max(0f, MaxBodyCrouchHeight));
+            }
+
+            bodyPositionOffset = EnableDynamicBodyPlacing && !BlockBodyPositioning
+                ? Mathf.Lerp(bodyPositionOffset, targetOffset,
+                    SmoothingFactor(UpAndDownForce + groundAngle / 20f))
                 : 0f;
-
-            if (!EnableDynamicBodyPlacing || BlockBodyPositioning)
+            // Suavizar solamente el desnivel. La altura de la animación actual y
+            // la traslación del root nunca pasan por un filtro ni por LastBodyPositionY.
+            float stopLeanOffset = 0f;
+            if (EnableDynamicBodyPlacing && RootBoneSpineMovement
+                && CanApplyBodyLean() && !movement.IsMoving)
             {
-                bodyPositionOffset = 0f;
-                NewAnimationBodyPosition = animator.bodyPosition;
-                LastBodyPositionY = animator.bodyPosition.y;
-                return;
+                // Conservar el gesto al frenar como desplazamiento de esta pose,
+                // equivalente a un tick y acotado a 3 cm, sin acumularlo cada frame.
+                stopLeanOffset = -Mathf.Min(0.03f, Mathf.Max(0f, RootBoneDownMovementIntensity)
+                    * Mathf.Abs(lean) * 0.1f * Time.fixedDeltaTime);
             }
-
-            if (!leftHit || !rightHit || Mathf.Approximately(LastBodyPositionY, 0f))
-            {
-                LastBodyPositionY = AnimationYBodyPosition;
-                bodyPositionOffset = 0f;
-                NewAnimationBodyPosition = animator.bodyPosition;
-                return;
-            }
-
-            float leftOffset =
-                leftHitPlaceBase.point.y
-                - transform.position.y
-                - LeftFootHeightFromGround * 0.5f;
-            float rightOffset =
-                rightHitPlaceBase.point.y
-                - transform.position.y
-                - RightFootHeightFromGround * 0.5f;
-            bodyPositionOffset = Mathf.Clamp(
-                Mathf.Min(leftOffset, rightOffset),
-                -MaxBodyCrouchHeight,
-                0f);
-
-            NewAnimationBodyPosition =
-                animator.bodyPosition + transform.up * bodyPositionOffset;
-            NewAnimationBodyPosition.y = Mathf.Lerp(
-                LastBodyPositionY,
-                NewAnimationBodyPosition.y,
-                (UpAndDownForce + groundAngle / 20f) * Time.deltaTime);
-
-            float distance = Mathf.Abs(AnimationYBodyPosition - LastBodyPositionY);
-            if (!JustCalculateBodyPosition && distance < 1f)
+            NewAnimationBodyPosition = animatedBody
+                + Vector3.up * ((bodyPositionOffset + stopLeanOffset) * weight);
+            if (!JustCalculateBodyPosition)
             {
                 animator.bodyPosition = NewAnimationBodyPosition;
             }
-
             LastBodyPositionY = animator.bodyPosition.y;
         }
 
         private void ApplyAimLookAt()
         {
-            if (!EnableAimLookAt || movement == null || !animator.isHuman)
+            if (movement == null)
             {
+                animator.SetLookAtWeight(0f);
                 return;
             }
 
+            aimIKWeight = Mathf.MoveTowards(aimIKWeight,
+                EnableAimLookAt && movement.FiringModeIK ? 1f : 0f,
+                Mathf.Max(0f, AimIKTransitionSpeed) * Time.deltaTime);
             Vector3 lookPosition = aimTrace != null && aimTrace.AimPoint != Vector3.zero
                 ? aimTrace.AimPoint
                 : movement.GetLookPosition();
@@ -570,82 +513,53 @@ namespace UPP.ThirdPersonController
             float bodyWeight = movement.IsProne
                 ? (LookAtBodyWeight > 0f ? 0.1f : 0f)
                 : LookAtBodyWeight;
-            animator.SetLookAtWeight(
-                intensity * aimIKWeight,
-                bodyWeight,
-                HeadIKBodyWeight);
+            animator.SetLookAtWeight(intensity * aimIKWeight, bodyWeight, HeadIKBodyWeight);
             animator.SetLookAtPosition(lookPosition);
         }
 
-        private void CaptureBodyLeanPose()
+        private bool CanApplyBodyLean()
         {
-            if (RootBone == null)
-            {
-                return;
-            }
-
-            unaffectedEulerAngles = RootBone.localEulerAngles;
-            unaffectedUpward = RootBone.up;
-            capturedLeanPose = true;
+            // Modificar una cadera o un ancestro de los pies después del solver
+            // desplazaría apoyos ya resueltos. El lean es de la columna superior.
+            return RootBone != null && movement != null && RootBoneSpineLean
+                && (leftFoot == null || !leftFoot.IsChildOf(RootBone))
+                && (rightFoot == null || !rightFoot.IsChildOf(RootBone))
+                && !movement.IsAiming && !movement.FiringMode
+                && !movement.IsRolling && movement.IsGrounded;
         }
 
         private void ApplyBodyLean()
         {
-            if (!capturedLeanPose || RootBone == null || movement == null)
+            if (RootBone == null || movement == null)
             {
                 return;
             }
 
-            bool canLean =
-                RootBoneSpineLean
-                && !movement.IsAiming
-                && !movement.FiringMode
-                && !movement.IsRolling
-                && movement.IsGrounded;
-            if (!canLean)
+            if (!CanApplyBodyLean())
             {
-                leanSpeed = 0f;
-                lean = 0f;
+                leanSpeed = lean = 0f;
                 return;
             }
 
-            leanSpeed = Mathf.Lerp(
-                leanSpeed,
-                movement.VelocityMultiplier,
-                10f * Time.deltaTime);
+            leanSpeed = Mathf.Lerp(leanSpeed, movement.VelocityMultiplier, SmoothingFactor(10f));
             float divisor = Mathf.Max(0.01f, BlockForwardLeanWeight);
             float targetLean = movement.IsMoving
                 ? leanSpeed * RootBoneLeanIntensity / divisor
                 : -(leanSpeed * RootBoneLeanIntensity * 0.5f);
-            lean = Mathf.Lerp(
-                lean,
-                targetLean,
-                RootBoneLeanSpeed * Time.deltaTime);
+            lean = Mathf.Lerp(lean, targetLean, SmoothingFactor(RootBoneLeanSpeed));
 
-            if (!movement.IsMoving && RootBoneSpineMovement)
-            {
-                LastBodyPositionY -=
-                    RootBoneDownMovementIntensity
-                    * Mathf.Abs(lean)
-                    * 0.1f
-                    * Time.deltaTime;
-            }
-
-            Vector3 euler = unaffectedEulerAngles;
+            // Capturar después del solver, no desde un callback anterior. El lean
+            // modifica la pose actual una vez y no acumula desplazamiento corporal.
+            unaffectedUpward = RootBone.up;
+            Vector3 euler = RootBone.localEulerAngles;
             switch (AxisToLean)
             {
-                case LeanAxis.X:
-                    euler.x += lean;
-                    break;
-                case LeanAxis.Y:
-                    euler.y += lean;
-                    break;
-                case LeanAxis.Z:
-                    euler.z += lean;
-                    break;
+                case LeanAxis.X: euler.x += lean; break;
+                case LeanAxis.Y: euler.y += lean; break;
+                case LeanAxis.Z: euler.z += lean; break;
             }
-
             RootBone.localRotation = Quaternion.Euler(euler);
+
         }
     }
 }

@@ -338,7 +338,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 140161116}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 2127586370}
+        m_TargetAssemblyTypeName: MenuBehaviour, Assembly-CSharp
+        m_MethodName: StartGame
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: 
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &140161116
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2900,7 +2912,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: THIS IS A PLACEHOLDER FOR THE OPTIONS MENU
+  m_text: "Los cambios se aplican autom\xE1ticamente."
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -3204,10 +3216,10 @@ MonoBehaviour:
       - m_Target: {fileID: 2127586370}
         m_TargetAssemblyTypeName: MenuBehaviour, Assembly-CSharp
         m_MethodName: ExitGame
-        m_Mode: 1
+        m_Mode: 0
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_ObjectArgumentAssemblyTypeName: 
           m_IntArgument: 0
           m_FloatArgument: 0
           m_StringArgument: 
@@ -3954,14 +3966,22 @@ MonoBehaviour:
       m_Calls: []
   m_text: 'Movement: W A S D
 
-    Jump: Space bar
+    Camera: Mouse
 
-    Fire: Left click
+    Sprint: Shift  |  Jump: Space
 
-    Aim:
-    Right click
+    Crouch:
+    C  |  Prone: Z  |  Roll: Left Ctrl
 
-    Sprint: Shift'
+    Aim: Right mouse button
+
+    Shoot: Left
+    mouse button
+
+    Pick up weapon: Look at it and press E
+
+    Pause / Resume:
+    Esc'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -5807,6 +5827,7 @@ GameObject:
   - component: {fileID: 2127586367}
   - component: {fileID: 2127586366}
   - component: {fileID: 2127586370}
+  - component: {fileID: 2127586371}
   m_Layer: 5
   m_Name: MainMenuCanvas
   m_TagString: Untagged
@@ -5919,103 +5940,27 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MenuBehaviour
   container: {fileID: 0}
---- !u!1001 &2949211160801452425
-PrefabInstance:
+  gameOverContainer: {fileID: 0}
+  isMainMenu: 1
+  gameplayScene: Level 1
+  mainMenuScene: SceneAlejandro
+--- !u!114 &2127586371
+MonoBehaviour:
   m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 0}
-    m_Modifications:
-    - target: {fileID: 248414499839419439, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_Name
-      value: PauseMenuCanvas
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_Pivot.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_Pivot.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_AnchorMax.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_AnchorMin.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_AnchorMin.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_SizeDelta.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_SizeDelta.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_AnchoredPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_AnchoredPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2795496699771082838, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: 46156ebb05ff9894296f7dc11d078688, type: 3}
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2127586365}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8fe8a3a453d24664b2dd67f9194cba46, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MenuOptions
+  resolutionDropdown: {fileID: 1933042809}
+  fullscreenToggle: {fileID: 1053670298}
+  volumeSlider: {fileID: 1502958379}
+  persistSettings: 1
+  preferenceKeyPrefix: Survive.Options
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -6024,4 +5969,3 @@ SceneRoots:
   - {fileID: 143064800}
   - {fileID: 2127586369}
   - {fileID: 1300929328}
-  - {fileID: 2949211160801452425}

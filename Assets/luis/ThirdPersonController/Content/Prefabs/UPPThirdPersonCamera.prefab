@@ -229,7 +229,7 @@ MonoBehaviour:
   TargetToFollow: {fileID: 0}
   CameraCollisionLayerMask:
     serializedVersion: 2
-    m_Bits: 71681
+    m_Bits: 1
   LockCursor: 1
   HideCursor: 1
   CustomCameraStates: []

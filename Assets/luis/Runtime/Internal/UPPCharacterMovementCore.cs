@@ -515,13 +515,18 @@ namespace UPP.ThirdPersonController.Internal
 
             DesiredCameraRotation = GetForwardOrientation();
             desiredDirection = new Vector3(horizontalInput, 0f, verticalInput);
-            Vector3 desiredEulerAngles = transform.localEulerAngles;
+            Quaternion targetRotation = rb.rotation;
+            Quaternion parentRotation = transform.parent != null
+                ? transform.parent.rotation
+                : Quaternion.identity;
+            Vector3 desiredEulerAngles =
+                (Quaternion.Inverse(parentRotation) * targetRotation).eulerAngles;
 
             if (IsMoving && desiredDirection.sqrMagnitude > 0.0001f)
             {
                 DirectionTransform.rotation =
                     DesiredCameraRotation * Quaternion.LookRotation(desiredDirection.normalized);
-                if (Vector3.Dot(transform.up, Vector3.up) < -0.989f)
+                if (Vector3.Dot(targetRotation * Vector3.up, Vector3.up) < -0.989f)
                 {
                     DirectionTransform.rotation = lastDirectionTransformRotation;
                 }
@@ -544,7 +549,8 @@ namespace UPP.ThirdPersonController.Internal
 
             if (FiringMode && !IsRolling)
             {
-                LookRotationToAimPosition(
+                targetRotation = CalculateAimRotation(
+                    targetRotation,
                     GetLookPosition(),
                     RotationSpeed,
                     UpOrientation * Vector3.up);
@@ -553,29 +559,30 @@ namespace UPP.ThirdPersonController.Internal
             {
                 if (CurvedMovement)
                 {
-                    transform.localEulerAngles = desiredEulerAngles;
+                    targetRotation = parentRotation * Quaternion.Euler(desiredEulerAngles);
                 }
                 else if (desiredDirection.sqrMagnitude > 0.0001f)
                 {
                     DirectionTransform.rotation =
                         Quaternion.FromToRotation(DirectionTransform.up, UpDirection)
                         * DirectionTransform.rotation;
-                    transform.rotation = Quaternion.Lerp(
-                        transform.rotation,
+                    targetRotation = Quaternion.Lerp(
+                        targetRotation,
                         DirectionTransform.rotation,
                         (IsRolling ? 1.5f : 1f) * RotationSpeed * Time.deltaTime);
                 }
             }
 
             Quaternion upDirection = Quaternion.FromToRotation(
-                transform.up,
+                targetRotation * Vector3.up,
                 IsProne ? GroundNormal : UpDirection);
             UpDirection = GroundNormal == Vector3.zero ? Vector3.up : UpDirection;
             UpOrientation = Quaternion.Lerp(
-                transform.rotation,
-                upDirection * transform.rotation,
+                targetRotation,
+                upDirection * targetRotation,
                 (IsGrounded ? 8f : 2f) * Time.deltaTime);
-            transform.rotation = UpOrientation;
+            // Escribir el Transform en Update invalidaba la pose interpolada.
+            rb.MoveRotation(UpOrientation);
             DirectionTransform.rotation =
                 Quaternion.FromToRotation(DirectionTransform.up, UpDirection)
                 * DirectionTransform.rotation;
@@ -702,26 +709,39 @@ namespace UPP.ThirdPersonController.Internal
             float rotationSpeed = 10f,
             Vector3 upDirection = default)
         {
+            rb.MoveRotation(CalculateAimRotation(
+                rb.rotation,
+                position,
+                rotationSpeed,
+                upDirection));
+        }
+
+        private Quaternion CalculateAimRotation(
+            Quaternion currentRotation,
+            Vector3 position,
+            float rotationSpeed,
+            Vector3 upDirection)
+        {
             if (IsRolling)
             {
-                return;
+                return currentRotation;
             }
 
-            Vector3 lookingDirection = (position - transform.position).normalized;
+            Vector3 lookingDirection = (position - rb.position).normalized;
             if (lookingDirection.sqrMagnitude <= 0f)
             {
-                return;
+                return currentRotation;
             }
 
-            transform.rotation = Quaternion.Lerp(
-                transform.rotation,
-                Quaternion.FromToRotation(transform.forward, lookingDirection)
-                * transform.rotation,
-                3f * rotationSpeed * Time.fixedDeltaTime);
-            transform.rotation = Quaternion.FromToRotation(
-                    transform.up,
+            Quaternion targetRotation = Quaternion.Lerp(
+                currentRotation,
+                Quaternion.FromToRotation(currentRotation * Vector3.forward, lookingDirection)
+                * currentRotation,
+                3f * rotationSpeed * Time.deltaTime);
+            return Quaternion.FromToRotation(
+                    targetRotation * Vector3.up,
                     upDirection != Vector3.zero ? upDirection : Vector3.up)
-                * transform.rotation;
+                * targetRotation;
         }
 
         protected virtual void DoFireModeMovement(bool firingMode)
@@ -953,9 +973,9 @@ namespace UPP.ThirdPersonController.Internal
             bool wasGrounded = IsGrounded;
             IsGrounded = false;
             Collider[] overlaps = Physics.OverlapBox(
-                transform.position + transform.up * GroundCheckHeighOfsset,
+                rb.position + (rb.rotation * Vector3.up) * GroundCheckHeighOfsset,
                 new Vector3(GroundCheckRadius, GroundCheckSize, GroundCheckRadius),
-                transform.rotation,
+                rb.rotation,
                 WhatIsGround,
                 QueryTriggerInteraction.Ignore);
 
@@ -981,8 +1001,8 @@ namespace UPP.ThirdPersonController.Internal
             }
 
             if (TryGetExternalHit(
-                    transform.position + transform.up * 0.5f,
-                    -transform.up,
+                    rb.position + (rb.rotation * Vector3.up) * 0.5f,
+                    -(rb.rotation * Vector3.up),
                     out RaycastHit hit,
                     2f,
                     WhatIsGround))
@@ -1002,8 +1022,8 @@ namespace UPP.ThirdPersonController.Internal
         protected Vector3 GetGroundPoint()
         {
             if (TryGetExternalHit(
-                    transform.position + transform.up * 0.5f,
-                    -transform.up,
+                    rb.position + (rb.rotation * Vector3.up) * 0.5f,
+                    -(rb.rotation * Vector3.up),
                     out RaycastHit hit,
                     1000f,
                     WhatIsGround))
@@ -1059,7 +1079,7 @@ namespace UPP.ThirdPersonController.Internal
         protected virtual void WallAHeadCheck()
         {
             WallAHead = Physics.Raycast(
-                transform.position + transform.up * WallRayHeight,
+                rb.position + (rb.rotation * Vector3.up) * WallRayHeight,
                 DirectionTransform.forward,
                 out RaycastHit hit,
                 WallRayDistance,
@@ -1083,12 +1103,9 @@ namespace UPP.ThirdPersonController.Internal
                 if (MaxWalkableAngle > 0f)
                 {
                     SlidingVelocity += Physics.gravity.y * Time.deltaTime;
-                    transform.Translate(
-                        -GroundNormal * SlidingVelocity * Time.deltaTime,
-                        Space.World);
-                    transform.Translate(
-                        Vector3.up * SlidingVelocity * Time.deltaTime,
-                        Space.World);
+                    Vector3 slideDisplacement =
+                        (Vector3.up - GroundNormal) * SlidingVelocity * Time.deltaTime;
+                    rb.MovePosition(rb.position + slideDisplacement);
                 }
             }
             else
@@ -1102,7 +1119,7 @@ namespace UPP.ThirdPersonController.Internal
         {
             return _stepHit.point == Vector3.zero
                 ? 0f
-                : Vector3.Angle(transform.up, _stepHit.normal);
+                : Vector3.Angle(rb.rotation * Vector3.up, _stepHit.normal);
         }
 
         public float GroundAngleDesacelerationValue()
@@ -1138,22 +1155,22 @@ namespace UPP.ThirdPersonController.Internal
                 && UngroundedStepUpSpeed > 0f
                 && !WallAHead
                 && Physics.SphereCast(
-                    transform.position
-                    + transform.up * FootstepHeight
-                    + transform.forward * ForwardStepOffset,
+                    rb.position
+                    + (rb.rotation * Vector3.up) * FootstepHeight
+                    + (rb.rotation * Vector3.forward) * ForwardStepOffset,
                     CapsuleCollider.radius * 0.5f,
-                    -transform.up,
+                    -(rb.rotation * Vector3.up),
                     out FootStepHit,
                     UngroundedStepUpRayDistance,
                     stepMask,
                     QueryTriggerInteraction.Ignore)
                 && !goToStepPosition
                 && FootStepHit.point.y > GroundPoint.y + StepHeight
-                && FootStepHit.point.y > transform.position.y + StepHeight)
+                && FootStepHit.point.y > rb.position.y + StepHeight)
             {
                 stepPosition = FootStepHit.point;
                 goToStepPosition = true;
-                startStepUpCharacterPosition = transform.position;
+                startStepUpCharacterPosition = rb.position;
             }
 
             if (IsMoving
@@ -1161,8 +1178,8 @@ namespace UPP.ThirdPersonController.Internal
                 && IsGrounded
                 && !WallAHead
                 && Physics.Raycast(
-                    transform.position
-                    + transform.up * FootstepHeight
+                    rb.position
+                    + (rb.rotation * Vector3.up) * FootstepHeight
                     + DirectionTransform.forward * ForwardStepOffset,
                     -Vector3.up,
                     out _stepHit,
@@ -1172,12 +1189,12 @@ namespace UPP.ThirdPersonController.Internal
                 && !AdjustHeight)
             {
                 AdjustHeight =
-                    _stepHit.point.y > transform.position.y
+                    _stepHit.point.y > rb.position.y
                     && StepAngle() < 10f;
             }
             else if (!AdjustHeight)
             {
-                _stepHit.point = transform.position;
+                _stepHit.point = rb.position;
             }
         }
 
@@ -1189,10 +1206,11 @@ namespace UPP.ThirdPersonController.Internal
                     goingToStepTime,
                     1f + StoppingTimeOnStepPosition,
                     UngroundedStepUpSpeed * Time.deltaTime);
-                transform.position = Vector3.Slerp(
+                Vector3 nextPosition = Vector3.Slerp(
                     startStepUpCharacterPosition,
                     stepPosition,
                     goingToStepTime);
+                rb.MovePosition(nextPosition);
 
                 if (!IsJumping)
                 {
@@ -1203,7 +1221,7 @@ namespace UPP.ThirdPersonController.Internal
                 {
                     goToStepPosition = false;
                     goingToStepTime = 0f;
-                    startStepUpCharacterPosition = transform.position;
+                    startStepUpCharacterPosition = nextPosition;
                 }
                 else
                 {
@@ -1218,19 +1236,20 @@ namespace UPP.ThirdPersonController.Internal
                 return;
             }
 
-            Vector3 targetPosition = transform.position;
+            Vector3 targetPosition = rb.position;
             if (_stepHit.collider)
             {
                 targetPosition.y = _stepHit.point.y;
             }
 
-            transform.position = Vector3.MoveTowards(
-                transform.position,
+            Vector3 correctedPosition = Vector3.MoveTowards(
+                rb.position,
                 targetPosition,
                 UpStepSpeed * Time.deltaTime);
-            if (Mathf.Abs(transform.position.y - targetPosition.y) <= 0.001f)
+            rb.MovePosition(correctedPosition);
+            if (Mathf.Abs(correctedPosition.y - targetPosition.y) <= 0.001f)
             {
-                _stepHit.point = transform.position;
+                _stepHit.point = correctedPosition;
                 AdjustHeight = false;
             }
         }

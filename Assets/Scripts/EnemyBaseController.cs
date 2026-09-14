@@ -16,6 +16,7 @@ public class EnemyBaseController : MonoBehaviour
     protected NavMeshAgent agent;
     protected Animator animator;
     protected EnemyHealth enemyHealth;
+    private Collider playerCollider;
 
     // Equipamiento
     [SerializeField] protected GameObject weaponEquip;
@@ -29,8 +30,13 @@ public class EnemyBaseController : MonoBehaviour
     [SerializeField] protected float hitTolerance = 0.5f;
     [SerializeField] protected float detectionRange = 6f;
 
+    [Header("Obstrucciones del ataque a distancia")]
+    [SerializeField] protected LayerMask attackObstructionMask = ~0;
+    [SerializeField, Min(0.001f)] protected float rangedOriginClearanceRadius = 0.025f;
+
     [Header("Animation")]
     [SerializeField, Min(0.01f)] protected float attackAnimationImpactTime = 0.5f;
+    [SerializeField, Min(0.1f)] protected float animationRunSpeed = 2.32f;
 
     protected float lastAttackTime = 0f;
     protected bool isAttacking = false;
@@ -72,6 +78,7 @@ public class EnemyBaseController : MonoBehaviour
     protected virtual void OnDisable()
     {
         if (enemyHealth != null) enemyHealth.OnDeath -= HandleDeath;
+        CancelCurrentAttack();
     }
 
     protected virtual void Start()
@@ -80,17 +87,17 @@ public class EnemyBaseController : MonoBehaviour
         if (player != null)
         {
             playerHealth = player.GetComponent<PlayerHealth>();
+            playerCollider = player.GetComponent<Collider>();
         }
 
         if (agent != null)
         {
             agent.speed = moveSpeed;
-            agent.stoppingDistance = 0.2f;
         }
 
         lastPosition = transform.position;
 
-        if (patrolPoints.Count > 0 && agent.isOnNavMesh)
+        if (agent != null && agent.isOnNavMesh)
         {
             SetNextPatrolDestination();
         }
@@ -135,11 +142,11 @@ public class EnemyBaseController : MonoBehaviour
     {
         EnemyState previousState = currentState;
 
-        if (distanceToPlayer <= attackRange)
+        if (distanceToPlayer <= attackRange && CanStartAttack())
         {
             currentState = EnemyState.Attack;
         }
-        else if (distanceToPlayer <= detectionRange)
+        else if (distanceToPlayer <= Mathf.Max(detectionRange, attackRange))
         {
             currentState = EnemyState.Chasing;
         }
@@ -223,12 +230,103 @@ public class EnemyBaseController : MonoBehaviour
             transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction), Time.deltaTime * 10f);
         }
 
-        if (!isAttacking && Time.time >= lastAttackTime + attackCooldown)
+        if (!isAttacking && !IsAttackAnimationPlaying() && CanStartAttack()
+            && Time.time >= lastAttackTime + attackCooldown)
         {
             lastAttackTime = Time.time;
             attackCoroutine = StartCoroutine(AttackRoutine());
         }
     }
+    private bool IsAttackAnimationPlaying()
+    {
+        if (animator == null || !animator.isActiveAndEnabled || animator.runtimeAnimatorController == null || animator.layerCount == 0)
+            return false;
+
+        // Espera la recuperación del gesto para no aplicar otro golpe durante el mismo clip.
+        if (animator.GetCurrentAnimatorStateInfo(0).IsTag("Attack")) return true;
+        return animator.IsInTransition(0) && animator.GetNextAnimatorStateInfo(0).IsTag("Attack");
+    }
+
+    protected virtual bool CanStartAttack()
+    {
+        return player != null && playerHealth != null && !playerHealth.IsDead
+            && Vector3.Distance(transform.position, player.transform.position) <= attackRange;
+    }
+
+    protected bool CanHitRangedTarget(Transform firePoint)
+    {
+        if (player == null || playerHealth == null || playerHealth.IsDead
+            || (enemyHealth != null && enemyHealth.IsDead)
+            || Vector3.Distance(transform.position, player.transform.position) > attackRange)
+            return false;
+
+        Vector3 origin = firePoint != null ? firePoint.position : transform.position;
+        Vector3 target = GetRangedAimPoint();
+        Vector3 direction = target - origin;
+
+        // Un raycast no informa el collider que contiene su origen. Revisar la boca
+        // evita que un enemigo pegado a una pared dispare desde dentro de ella.
+        foreach (Collider overlap in Physics.OverlapSphere(origin,
+            Mathf.Max(0.001f, rangedOriginClearanceRadius), attackObstructionMask,
+            QueryTriggerInteraction.Ignore))
+        {
+            if (!IsAttackColliderIgnored(overlap)) return false;
+        }
+
+        float distance = direction.magnitude;
+        if (distance <= 0.001f) return true;
+        foreach (RaycastHit hit in Physics.RaycastAll(origin, direction / distance,
+            distance, attackObstructionMask, QueryTriggerInteraction.Ignore))
+        {
+            if (!IsAttackColliderIgnored(hit.collider)) return false;
+        }
+        return true;
+    }
+
+    private bool IsAttackColliderIgnored(Collider candidate)
+    {
+        return candidate == null || candidate.transform.IsChildOf(transform)
+            || (player != null && candidate.transform.IsChildOf(player.transform));
+    }
+
+    private Vector3 GetRangedAimPoint()
+    {
+        return playerCollider != null && playerCollider.enabled
+            ? playerCollider.bounds.center
+            : player.transform.position;
+    }
+
+    protected IEnumerator RangedAttackRoutine(GameObject projectilePrefab, Transform firePoint)
+    {
+        if (!CanHitRangedTarget(firePoint)) yield break;
+        isAttacking = true;
+        if (animator != null) animator.SetTrigger("Attack");
+
+        yield return new WaitForSeconds(attackWindupTime);
+
+        // La preparación no garantiza el impacto: el jugador puede alejarse
+        // o ponerse a cubierto antes de que termine la animación.
+        if (CanHitRangedTarget(firePoint))
+        {
+            if (projectilePrefab != null)
+            {
+                Vector3 origin = firePoint != null ? firePoint.position : transform.position;
+                Vector3 direction = GetRangedAimPoint() - origin;
+                Quaternion rotation = direction.sqrMagnitude > 0.000001f
+                    ? Quaternion.LookRotation(direction.normalized)
+                    : transform.rotation;
+                Instantiate(projectilePrefab, origin, rotation);
+            }
+            else
+            {
+                playerHealth.TakeDamage(attackDamage);
+            }
+        }
+
+        isAttacking = false;
+        attackCoroutine = null;
+    }
+
     protected virtual IEnumerator AttackRoutine()
     {
         isAttacking = true;
@@ -280,17 +378,34 @@ public class EnemyBaseController : MonoBehaviour
             Vector3 newDestination = GetRandomNavMeshPoint(transform.position, randomPatrolRadius);
             agent.SetDestination(newDestination);
         }
-        else if (patrolPoints.Count > 0 && patrolPoints[currentPatrolIndex] != null)
+        else
         {
-            agent.isStopped = false;
-            agent.SetDestination(patrolPoints[currentPatrolIndex].position);
+            // Se pueden editar los puntos por instancia; las entradas vacías
+            // no interrumpen una ruta que todavía tiene destinos válidos.
+            for (int checkedPoints = 0; checkedPoints < patrolPoints.Count; checkedPoints++)
+            {
+                currentPatrolIndex %= patrolPoints.Count;
+                Transform point = patrolPoints[currentPatrolIndex];
+                if (point != null)
+                {
+                    agent.isStopped = false;
+                    agent.SetDestination(point.position);
+                    return;
+                }
+                currentPatrolIndex++;
+            }
+            agent.ResetPath();
+            agent.isStopped = true;
         }
     }
     protected virtual void UpdateAnimator()
     {
         if (animator != null && agent != null)
         {
-            animator.SetFloat("Speed", agent.velocity.magnitude);
+            float speed = agent.velocity.magnitude;
+            animator.SetFloat("Speed", speed);
+            // Mantiene la cadencia de los pasos cuando el agente supera la velocidad nativa del clip.
+            animator.SetFloat("LocomotionSpeed", Mathf.Max(1f, speed / Mathf.Max(.1f, animationRunSpeed)));
             // El gesto y sus eventos acompañan al windup configurado por cada variante.
             animator.SetFloat("AttackSpeed", attackAnimationImpactTime / Mathf.Max(.01f, attackWindupTime));
         }

@@ -45,7 +45,7 @@ namespace UPP.ThirdPersonController
         [Header("Controlador de animación")]
         [SerializeField] private RuntimeAnimatorController controllerAsset;
         [SerializeField] private bool assignControllerOnAwake = true;
-        [SerializeField] private AnimatorUpdateMode updateMode = AnimatorUpdateMode.Fixed;
+        [SerializeField] private AnimatorUpdateMode updateMode = AnimatorUpdateMode.Normal;
         [SerializeField, Min(0f)] private float layerBlendSpeed = 5f;
         [SerializeField] private ParameterMap parameters = new ParameterMap();
 
