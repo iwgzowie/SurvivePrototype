@@ -28,6 +28,8 @@ public class PlayerHealth : MonoBehaviour
         }
 
         currentHealth = Mathf.Max(0f, currentHealth - amount);
+        Debug.Log("Jugador recibió " + amount + " de daño. Vida actual: " + currentHealth);
+
         if (currentHealth > 0f)
         {
             return;
