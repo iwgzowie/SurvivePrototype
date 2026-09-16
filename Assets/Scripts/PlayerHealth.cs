@@ -11,6 +11,7 @@ public class PlayerHealth : MonoBehaviour
     public bool IsDead { get; private set; }
     public float CurrentHealth => currentHealth;
     public float MaxHealth => maxHealth;
+    public event Action<float, float> OnHealthChanged;
     public event Action OnDeath;
 
     private void Awake()
@@ -18,6 +19,7 @@ public class PlayerHealth : MonoBehaviour
         maxHealth = Mathf.Max(1f, maxHealth);
         currentHealth = maxHealth;
         IsDead = false;
+        OnHealthChanged?.Invoke(currentHealth, maxHealth);
     }
 
     public void TakeDamage(float amount)
@@ -27,16 +29,27 @@ public class PlayerHealth : MonoBehaviour
             return;
         }
 
-        currentHealth = Mathf.Max(0f, currentHealth - amount);
-        Debug.Log("Jugador recibió " + amount + " de daño. Vida actual: " + currentHealth);
-
-        if (currentHealth > 0f)
+        float nextHealth = Mathf.Max(0f, currentHealth - amount);
+        if (nextHealth == currentHealth)
         {
             return;
         }
 
+        currentHealth = nextHealth;
+        Debug.Log("Jugador recibió " + amount + " de daño. Vida actual: " + currentHealth);
+
+        // Publicar un estado coherente permite consultar IsDead desde cualquiera de los eventos.
+        bool died = currentHealth <= 0f;
+        if (died)
+        {
+            IsDead = true;
+        }
+        OnHealthChanged?.Invoke(currentHealth, maxHealth);
+
         // La salud publica el resultado; la presentación y el bloqueo pertenecen al consumidor.
-        IsDead = true;
-        OnDeath?.Invoke();
+        if (died)
+        {
+            OnDeath?.Invoke();
+        }
     }
 }
