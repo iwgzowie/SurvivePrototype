@@ -5,8 +5,8 @@ using UnityEngine;
 using TMPro;
 
 /// <summary>
-/// 
-/// 
+/// Muestra en la interfaz de usuario la oleada actual y los enemigos restantes.
+/// Se suscribe a los eventos del EnemySpawner y oculta los avisos temporales.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class WaveHUD : MonoBehaviour

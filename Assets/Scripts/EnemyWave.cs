@@ -37,5 +37,9 @@ public class EnemyWave
     [Tooltip("Puntos de esta oleada. Si la lista está vacía se usan los del spawner; sin puntos se usa su Transform.")]
     public List<Transform> spawnPoints = new List<Transform>();
 
+    [Header("Multiplicadores de Dificultad")]
+    [Min(0.1f)] public float healthMultiplier = 1f;
+    [Min(0.1f)] public float speedMultiplier = 1f;
+
     public long TotalEnemies => (long)chasingCount + chasingRangedCount + patrolCount;
 }

@@ -151,4 +151,9 @@ public class EnemyHealth : MonoBehaviour
         //  Destruir tras el retardo
         Destroy(gameObject, destroyDelay);
     }
+    public void ApplyWaveMultipliers(float healthMult)
+    {
+        maxHealth *= healthMult;
+        currentHealth = maxHealth;
+    }
 }

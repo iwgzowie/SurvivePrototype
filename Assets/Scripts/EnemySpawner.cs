@@ -36,6 +36,9 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField, Min(0.1f)] private float navMeshSampleDistance = 2f;
     [SerializeField, Min(1)] private int maxSpawnAttempts = 32;
 
+    [Header("Limites")]
+    [SerializeField, Min(1)] private int maxSimultaneousEnemies = 10;
+
     private readonly Dictionary<EnemyHealth, Action> aliveEnemies = new Dictionary<EnemyHealth, Action>();
     private readonly List<EnemyHealth> removedEnemies = new List<EnemyHealth>();
     private Coroutine waveRoutine;
@@ -221,6 +224,14 @@ public class EnemySpawner : MonoBehaviour
             int melee = wave.chasingCount, ranged = wave.chasingRangedCount, patrol = wave.patrolCount;
             while ((long)melee + ranged + patrol > 0 && CanContinue())
             {
+                // Espera si se alcanzo el limite de enemigos simultaneos en el mapa
+                while (aliveEnemies.Count >= maxSimultaneousEnemies && CanContinue())
+                {
+                    yield return new WaitForSeconds(0.5f);
+                }
+
+                if (!CanContinue()) yield break;
+
                 // Alterna los tipos disponibles para distribuir la composición durante la generación.
                 for (int type = 0; type < 3 && CanContinue(); type++)
                 {
@@ -289,13 +300,25 @@ public class EnemySpawner : MonoBehaviour
             Fail($"Oleada {CurrentWaveNumber}: {prefab.name} no pudo colocarse sobre el NavMesh.");
             return false;
         }
-        EnemyHealth health = instance.GetComponent<EnemyHealth>();
-        if (!health.IsDead)
+
+        if (agent != null && wave.speedMultiplier != 1f)
         {
-            Action onDeath = () => RemoveTrackedEnemy(health);
-            aliveEnemies.Add(health, onDeath);
-            health.OnDeath += onDeath;
+            agent.speed *= wave.speedMultiplier;
         }
+
+        EnemyHealth health = instance.GetComponent<EnemyHealth>();
+        if (health != null)
+        {
+            health.ApplyWaveMultipliers(wave.healthMultiplier);
+
+            if (!health.IsDead)
+            {
+                Action onDeath = () => RemoveTrackedEnemy(health);
+                aliveEnemies.Add(health, onDeath);
+                health.OnDeath += onDeath;
+            }
+        }
+
         SpawnedInCurrentWave++;
         OnEnemySpawned?.Invoke(health);
         return true;
