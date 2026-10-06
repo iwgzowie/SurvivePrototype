@@ -319,6 +319,12 @@ public class EnemySpawner : MonoBehaviour
             }
         }
 
+        var controller = instance.GetComponent<EnemyBaseController>();
+        if (controller != null && (wave.damageMultiplier != 1f || wave.speedMultiplier != 1f))
+        {
+            controller.ApplyWaveMultipliers(wave.damageMultiplier, wave.speedMultiplier);
+        }
+
         SpawnedInCurrentWave++;
         OnEnemySpawned?.Invoke(health);
         return true;
@@ -409,5 +415,18 @@ public class EnemySpawner : MonoBehaviour
         ClearTrackedEnemies();
         UnsubscribeHealth();
         Debug.LogError($"EnemySpawner: {error}", this);
+    }
+
+    /// <summary>
+    /// Fuerza el reinicio completo de las oleadas desde la primera, limpiando el estado previo.
+    /// </summary>
+    public bool ResetAndRestartWaves()
+    {
+        CancelWaves();
+
+        State = WaveRunState.Idle;
+        CurrentWaveIndex = -1;
+
+        return StartWaves();
     }
 }

@@ -18,7 +18,15 @@ public class WaveDebugCommands : MonoBehaviour
 
     private void Update()
     {
-        if (spawner == null || !spawner.IsRunning) return;
+        if (spawner == null) return;
+
+        // Tecla R: Reiniciar todas las oleadas desde el principio (funciona en cualquier momento)
+        if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
+        {
+            RestartWaves();
+        }
+
+        if (!spawner.IsRunning) return;
 
         // Tecla K: Eliminar a todos los enemigos activos (Limpiar/Saltar oleada)
         if (Keyboard.current != null && Keyboard.current.kKey.wasPressedThisFrame)
@@ -35,8 +43,16 @@ public class WaveDebugCommands : MonoBehaviour
         {
             if (enemy != null && !enemy.IsDead)
             {
-                enemy.TakeDamage(99999f); // Aplica daño masivo para simular la muerte instantánea
+                enemy.TakeDamage(99999f);
             }
         }
+    }
+
+    private void RestartWaves()
+    {
+        KillAllActiveEnemies();
+
+
+        spawner.ResetAndRestartWaves();
     }
 }

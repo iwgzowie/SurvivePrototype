@@ -138,6 +138,23 @@ public class EnemyBaseController : MonoBehaviour
         }
     }
 
+    public void ApplyDamageMultiplier(float multiplier)
+    {
+        attackDamage *= multiplier;
+    }
+
+    public void ApplyWaveMultipliers(float damageMult, float speedMult)
+    {
+        ApplyDamageMultiplier(damageMult);
+
+        moveSpeed *= speedMult;
+
+        if (TryGetComponent<NavMeshAgent>(out var agent))
+        {
+            agent.speed = moveSpeed;
+        }
+    }
+
     private void CheckStateTransitions(float distanceToPlayer)
     {
         EnemyState previousState = currentState;

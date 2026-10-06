@@ -40,6 +40,7 @@ public class EnemyWave
     [Header("Multiplicadores de Dificultad")]
     [Min(0.1f)] public float healthMultiplier = 1f;
     [Min(0.1f)] public float speedMultiplier = 1f;
+    [Min(0.1f)] public float damageMultiplier = 1f;
 
     public long TotalEnemies => (long)chasingCount + chasingRangedCount + patrolCount;
 }
