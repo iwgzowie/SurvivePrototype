@@ -72,7 +72,6 @@ public sealed class WaveHUD : MonoBehaviour
         {
             subscribedSpawner.OnWaveStarted += OnWaveStarted;
             subscribedSpawner.OnWaveCompleted += OnWaveCompleted;
-            subscribedSpawner.OnAllWavesCompleted += OnAllWavesCompleted;
         }
     }
 
@@ -82,7 +81,6 @@ public sealed class WaveHUD : MonoBehaviour
         {
             subscribedSpawner.OnWaveStarted -= OnWaveStarted;
             subscribedSpawner.OnWaveCompleted -= OnWaveCompleted;
-            subscribedSpawner.OnAllWavesCompleted -= OnAllWavesCompleted;
         }
         subscribedSpawner = null;
     }
@@ -97,13 +95,13 @@ public sealed class WaveHUD : MonoBehaviour
             return;
         }
 
-        UpdateWaveText(enemySpawner.CurrentWaveNumber, enemySpawner.WaveCount);
+        UpdateWaveText(enemySpawner.CurrentWaveNumber, enemySpawner.CurrentWaveNumber);
         UpdateEnemiesCount();
     }
 
     private void OnWaveStarted(int waveIndex, EnemyWave wave)
     {
-        UpdateWaveText(waveIndex + 1, enemySpawner.WaveCount);
+        UpdateWaveText(waveIndex + 1, enemySpawner.CurrentWaveNumber);
 
         ClearStatusText();
     }

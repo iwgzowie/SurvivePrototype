@@ -10,12 +10,12 @@ public enum WaveRunState
     Waiting,
     Spawning,
     WaitingForEnemies,
+    Resting,
     Completed,
     Cancelled,
     Failed
 }
 
-/// <summary>Genera oleadas configurables y termina la partida al eliminar la última.</summary>
 public class EnemySpawner : MonoBehaviour
 {
     [Header("Prefabs predeterminados")]
@@ -23,8 +23,11 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField, InspectorName("Prefab a distancia")] private GameObject chasingRangedPrefab;
     [SerializeField, InspectorName("Prefab patrullero")] private GameObject patrolPrefab;
 
-    [Header("Oleadas")]
-    [SerializeField] private List<EnemyWave> waves = new List<EnemyWave>();
+    [Header("Oleadas e Infinito")]
+    [SerializeField] private List<EnemyWave> baseWaveTemplates = new List<EnemyWave>();
+    [SerializeField] private int wavesBeforeBoss = 3;
+    [SerializeField] private BossSpawner bossSpawner;
+    [SerializeField] private float restDurationAfterBoss = 120f;
     [SerializeField] private bool autoStart = true;
 
     [Header("Partida")]
@@ -42,30 +45,51 @@ public class EnemySpawner : MonoBehaviour
     private readonly Dictionary<EnemyHealth, Action> aliveEnemies = new Dictionary<EnemyHealth, Action>();
     private readonly List<EnemyHealth> removedEnemies = new List<EnemyHealth>();
     private Coroutine waveRoutine;
-    private List<EnemyWave> runningWaves;
     private float runningSampleDistance;
     private int runningSpawnAttempts;
     private bool healthSubscribed;
     private int nextSpawnPoint;
+    private bool waitingForBossDefeat = false;
 
+    // Declaración recuperada para evitar errores de contexto
+    public int SpawnedInCurrentWave { get; private set; }
+
+    // Propiedades públicas de estado
     public WaveRunState State { get; private set; } = WaveRunState.Idle;
     public int CurrentWaveIndex { get; private set; } = -1;
     public int CurrentWaveNumber => CurrentWaveIndex + 1;
-    public int WaveCount => runningWaves != null ? runningWaves.Count : (waves != null ? waves.Count : 0);
+
+    // Cantidad de oleadas que faltan para el jefe
+    public int WavesUntilBoss => wavesBeforeBoss - (CurrentWaveNumber % wavesBeforeBoss);
+
+    public float RestTimeRemaining { get; private set; } = 0f;
     public int AliveEnemyCount => aliveEnemies.Count;
-    public int SpawnedInCurrentWave { get; private set; }
     public IReadOnlyCollection<EnemyHealth> AliveEnemies => aliveEnemies.Keys;
     public string LastError { get; private set; }
     public bool IsRunning => State == WaveRunState.Waiting || State == WaveRunState.Spawning
-        || State == WaveRunState.WaitingForEnemies;
+        || State == WaveRunState.WaitingForEnemies || State == WaveRunState.Resting;
 
+    // Eventos públicos para UI / Leaderboard
     public event Action<int, EnemyWave> OnWaveStarted;
     public event Action<int> OnWaveCompleted;
+    public event Action<int> OnBossWaveApproaching;
+    public event Action OnBossWaveStarted;
+    public event Action<float> OnRestTimerUpdated;
+    public event Action OnRestStarted;
+    public event Action OnRestFinished;
     public event Action<EnemyHealth> OnEnemySpawned;
-    public event Action OnAllWavesCompleted;
 
     private void Start()
     {
+        if (bossSpawner == null)
+        {
+            bossSpawner = GetComponent<BossSpawner>();
+            if (bossSpawner == null)
+            {
+                Debug.LogWarning("EnemySpawner: No se asignó ningún BossSpawner en el inspector ni en el GameObject.");
+            }
+        }
+
         if (autoStart) StartWaves();
     }
 
@@ -73,15 +97,16 @@ public class EnemySpawner : MonoBehaviour
     {
         if (IsRunning) CancelWaves();
         UnsubscribeHealth();
+        UnsubscribeBossEvents();
     }
 
     private void OnDestroy()
     {
         ClearTrackedEnemies();
         UnsubscribeHealth();
+        UnsubscribeBossEvents();
     }
 
-    /// <summary>Inicia una sola ejecución. Reintentar la partida recarga la escena y sus oleadas.</summary>
     public bool StartWaves()
     {
         if (!isActiveAndEnabled || State != WaveRunState.Idle) return false;
@@ -96,170 +121,173 @@ public class EnemySpawner : MonoBehaviour
             State = WaveRunState.Cancelled;
             return false;
         }
-        if (!ValidateWaves(out string error))
+        if (baseWaveTemplates == null || baseWaveTemplates.Count == 0)
         {
-            Fail(error);
+            Fail("La lista de plantillas de oleadas está vacía.");
             return false;
         }
 
-        // La partida conserva su configuración; los cambios del Inspector se aplican al reiniciar.
         runningSampleDistance = navMeshSampleDistance;
         runningSpawnAttempts = maxSpawnAttempts;
-        runningWaves = new List<EnemyWave>(waves.Count);
-        foreach (EnemyWave wave in waves)
-        {
-            runningWaves.Add(new EnemyWave
-            {
-                waveName = wave.waveName, chasingCount = wave.chasingCount,
-                chasingRangedCount = wave.chasingRangedCount, patrolCount = wave.patrolCount,
-                chasingPrefab = wave.chasingPrefab != null ? wave.chasingPrefab : chasingPrefab,
-                chasingRangedPrefab = wave.chasingRangedPrefab != null ? wave.chasingRangedPrefab : chasingRangedPrefab,
-                patrolPrefab = wave.patrolPrefab != null ? wave.patrolPrefab : patrolPrefab,
-                delayBeforeWave = wave.delayBeforeWave,
-                spawnInterval = wave.spawnInterval, spawnRadius = wave.spawnRadius,
-                spawnPoints = wave.spawnPoints != null && wave.spawnPoints.Count > 0
-                    ? new List<Transform>(wave.spawnPoints)
-                    : defaultSpawnPoints != null && defaultSpawnPoints.Count > 0
-                        ? new List<Transform>(defaultSpawnPoints) : new List<Transform> { transform }
-            });
-        }
+        CurrentWaveIndex = -1;
+
         playerHealth.OnDeath += CancelWaves;
         healthSubscribed = true;
         State = WaveRunState.Waiting;
-        waveRoutine = StartCoroutine(RunWaves());
+        waveRoutine = StartCoroutine(RunInfiniteWaves());
         return true;
     }
 
-    private void ResolveGameReferences()
+    private IEnumerator RunInfiniteWaves()
     {
-        if (playerHealth == null)
-        {
-            foreach (PlayerHealth candidate in FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None))
-            {
-                if (candidate.gameObject.scene == gameObject.scene && candidate.CompareTag("Player"))
-                {
-                    playerHealth = candidate;
-                    break;
-                }
-            }
-        }
-        if (menu == null)
-        {
-            foreach (MenuBehaviour candidate in FindObjectsByType<MenuBehaviour>(FindObjectsSortMode.None))
-            {
-                if (candidate.gameObject.scene == gameObject.scene && !candidate.IsMainMenu)
-                {
-                    menu = candidate;
-                    break;
-                }
-            }
-        }
-    }
-
-    private bool ValidateWaves(out string error)
-    {
-        error = null;
-        if (waves == null || waves.Count == 0)
-        {
-            error = "La lista de oleadas está vacía.";
-            return false;
-        }
-        bool anyEnemies = false;
-        for (int i = 0; i < waves.Count; i++)
-        {
-            EnemyWave wave = waves[i];
-            if (wave == null) { error = $"La oleada {i + 1} no tiene configuración."; return false; }
-            if (wave.chasingCount < 0 || wave.chasingRangedCount < 0 || wave.patrolCount < 0
-                || wave.TotalEnemies > int.MaxValue || !ValidTime(wave.delayBeforeWave)
-                || !ValidTime(wave.spawnInterval) || !ValidTime(wave.spawnRadius))
-            {
-                error = $"La oleada {i + 1} tiene cantidades o tiempos inválidos.";
-                return false;
-            }
-            anyEnemies |= wave.TotalEnemies > 0;
-            if (!ValidatePrefab(wave.chasingPrefab != null ? wave.chasingPrefab : chasingPrefab, wave.chasingCount, out error)
-                || !ValidatePrefab(wave.chasingRangedPrefab != null ? wave.chasingRangedPrefab : chasingRangedPrefab, wave.chasingRangedCount, out error)
-                || !ValidatePrefab(wave.patrolPrefab != null ? wave.patrolPrefab : patrolPrefab, wave.patrolCount, out error))
-            {
-                error = $"Oleada {i + 1}: {error}";
-                return false;
-            }
-        }
-        if (!anyEnemies) { error = "Configurá al menos un enemigo; una lista vacía de enemigos no otorga victoria."; return false; }
-        return true;
-    }
-
-    private static bool ValidTime(float value) => value >= 0f && !float.IsNaN(value) && !float.IsInfinity(value);
-
-    private static bool ValidatePrefab(GameObject prefab, int count, out string error)
-    {
-        error = null;
-        if (count == 0) return true;
-        if (prefab == null) { error = "Falta el prefab de un tipo con cantidad mayor a cero."; return false; }
-        if (!prefab.activeSelf || prefab.GetComponent<EnemyHealth>() == null
-            || !prefab.TryGetComponent(out NavMeshAgent agent) || !agent.enabled)
-        {
-            error = $"El prefab {prefab.name} necesita estar activo y tener EnemyHealth y NavMeshAgent habilitado en su raíz.";
-            return false;
-        }
-        return true;
-    }
-
-    private IEnumerator RunWaves()
-    {
-        // Permite terminar Awake/Start y evita ganar dentro de una notificación de muerte.
         yield return null;
-        for (int i = 0; i < runningWaves.Count && CanContinue(); i++)
+
+        while (CanContinue())
         {
-            CurrentWaveIndex = i;
+            CurrentWaveIndex++;
             SpawnedInCurrentWave = 0;
             nextSpawnPoint = 0;
-            EnemyWave wave = runningWaves[i];
+
+            bool isBossWave = (CurrentWaveNumber % wavesBeforeBoss == 0);
+
+            if (!isBossWave)
+            {
+                OnBossWaveApproaching?.Invoke(WavesUntilBoss);
+            }
+
+            EnemyWave currentWave = GenerateProceduralWave(CurrentWaveIndex, isBossWave);
+
             State = WaveRunState.Waiting;
-            yield return WaitWhileAlive(wave.delayBeforeWave);
+            yield return WaitWhileAlive(currentWave.delayBeforeWave);
             if (!CanContinue()) yield break;
 
             State = WaveRunState.Spawning;
-            OnWaveStarted?.Invoke(i, wave);
-            int melee = wave.chasingCount, ranged = wave.chasingRangedCount, patrol = wave.patrolCount;
-            while ((long)melee + ranged + patrol > 0 && CanContinue())
+            OnWaveStarted?.Invoke(CurrentWaveIndex, currentWave);
+
+            if (isBossWave)
             {
-                // Espera si se alcanzo el limite de enemigos simultaneos en el mapa
-                while (aliveEnemies.Count >= maxSimultaneousEnemies && CanContinue())
+                OnBossWaveStarted?.Invoke();
+
+                if (bossSpawner != null)
                 {
-                    yield return new WaitForSeconds(0.5f);
+                    waitingForBossDefeat = true;
+                    bossSpawner.OnBossSpawned += TrackBossHealth;
+                    bossSpawner.OnBossDefeated += HandleBossDefeatedExternal;
+
+                    bossSpawner.SpawnBoss(currentWave.healthMultiplier, currentWave.damageMultiplier, currentWave.speedMultiplier);
+                }
+                else
+                {
+                    Debug.LogError("EnemySpawner: Es oleada de jefe pero falta asignar el componente BossSpawner.");
+                }
+
+                State = WaveRunState.WaitingForEnemies;
+                while (waitingForBossDefeat && CanContinue())
+                {
+                    yield return null;
+                }
+            }
+            else
+            {
+                int melee = currentWave.chasingCount, ranged = currentWave.chasingRangedCount, patrol = currentWave.patrolCount;
+                while ((long)melee + ranged + patrol > 0 && CanContinue())
+                {
+                    while (aliveEnemies.Count >= maxSimultaneousEnemies && CanContinue())
+                    {
+                        yield return new WaitForSeconds(0.5f);
+                    }
+
+                    if (!CanContinue()) yield break;
+
+                    for (int type = 0; type < 3 && CanContinue(); type++)
+                    {
+                        if ((type == 0 && melee == 0) || (type == 1 && ranged == 0) || (type == 2 && patrol == 0)) continue;
+                        GameObject prefab = type == 0 ? currentWave.chasingPrefab
+                            : type == 1 ? currentWave.chasingRangedPrefab : currentWave.patrolPrefab;
+                        if (!SpawnEnemy(prefab, currentWave)) yield break;
+                        if (type == 0) melee--; else if (type == 1) ranged--; else patrol--;
+                        if ((long)melee + ranged + patrol > 0) yield return WaitWhileAlive(currentWave.spawnInterval);
+                    }
                 }
 
                 if (!CanContinue()) yield break;
+                State = WaveRunState.WaitingForEnemies;
 
-                // Alterna los tipos disponibles para distribuir la composición durante la generación.
-                for (int type = 0; type < 3 && CanContinue(); type++)
+                do
                 {
-                    if ((type == 0 && melee == 0) || (type == 1 && ranged == 0) || (type == 2 && patrol == 0)) continue;
-                    GameObject prefab = type == 0 ? wave.chasingPrefab
-                        : type == 1 ? wave.chasingRangedPrefab : wave.patrolPrefab;
-                    if (!SpawnEnemy(prefab, wave)) yield break;
-                    if (type == 0) melee--; else if (type == 1) ranged--; else patrol--;
-                    if ((long)melee + ranged + patrol > 0) yield return WaitWhileAlive(wave.spawnInterval);
-                }
+                    yield return null;
+                    RemoveDestroyedEnemies();
+                } while ((aliveEnemies.Count > 0 || Time.timeScale <= 0f) && CanContinue());
             }
+
             if (!CanContinue()) yield break;
-            State = WaveRunState.WaitingForEnemies;
-            do
+            OnWaveCompleted?.Invoke(CurrentWaveIndex);
+
+            if (isBossWave && CanContinue())
             {
-                yield return null;
-                RemoveDestroyedEnemies();
-            } while ((aliveEnemies.Count > 0 || Time.timeScale <= 0f) && CanContinue());
-            if (!CanContinue()) yield break;
-            OnWaveCompleted?.Invoke(i);
+                State = WaveRunState.Resting;
+                OnRestStarted?.Invoke();
+                RestTimeRemaining = restDurationAfterBoss;
+
+                while (RestTimeRemaining > 0f && CanContinue())
+                {
+                    if (Time.timeScale > 0f)
+                    {
+                        RestTimeRemaining -= Time.deltaTime;
+                        OnRestTimerUpdated?.Invoke(RestTimeRemaining);
+                    }
+                    yield return null;
+                }
+
+                if (!CanContinue()) yield break;
+                OnRestFinished?.Invoke();
+            }
         }
-        if (!CanContinue()) yield break;
-        State = WaveRunState.Completed;
-        waveRoutine = null;
-        UnsubscribeHealth();
-        if (menu != null) menu.ShowVictory();
-        else { Time.timeScale = 0f; Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }
-        OnAllWavesCompleted?.Invoke();
+    }
+
+    private EnemyWave GenerateProceduralWave(int waveIndex, bool isBossWave)
+    {
+        EnemyWave template = baseWaveTemplates[waveIndex % baseWaveTemplates.Count];
+        float difficultyFactor = 1f + (waveIndex * 0.15f);
+
+        return new EnemyWave
+        {
+            waveName = isBossWave ? $"¡Jefe en Oleada {waveIndex + 1}!" : $"Oleada {waveIndex + 1}",
+            chasingCount = isBossWave ? 0 : Mathf.RoundToInt(template.chasingCount * difficultyFactor),
+            chasingPrefab = template.chasingPrefab != null ? template.chasingPrefab : chasingPrefab,
+            chasingRangedCount = isBossWave ? 0 : Mathf.RoundToInt(template.chasingRangedCount * difficultyFactor),
+            chasingRangedPrefab = template.chasingRangedPrefab != null ? template.chasingRangedPrefab : chasingRangedPrefab,
+            patrolCount = isBossWave ? 0 : Mathf.RoundToInt(template.patrolCount * difficultyFactor),
+            patrolPrefab = template.patrolPrefab != null ? template.patrolPrefab : patrolPrefab,
+            delayBeforeWave = template.delayBeforeWave,
+            spawnInterval = Mathf.Max(0.1f, template.spawnInterval / Mathf.Sqrt(difficultyFactor)),
+            spawnRadius = template.spawnRadius,
+            healthMultiplier = template.healthMultiplier * difficultyFactor * (isBossWave ? 2.5f : 1f),
+            speedMultiplier = Mathf.Min(2.0f, template.speedMultiplier * (1f + (waveIndex * 0.04f))),
+            damageMultiplier = template.damageMultiplier * difficultyFactor * (isBossWave ? 1.5f : 1f),
+            spawnPoints = template.spawnPoints != null && template.spawnPoints.Count > 0
+                ? new List<Transform>(template.spawnPoints)
+                : (defaultSpawnPoints != null && defaultSpawnPoints.Count > 0 ? new List<Transform>(defaultSpawnPoints) : new List<Transform> { transform })
+        };
+    }
+
+    // Sobrecargas para adaptarse al tipo de argumento del BossSpawner (sea GameObject o EnemyHealth)
+    private void TrackBossHealth(EnemyHealth bossHealth) { }
+    private void TrackBossHealth(GameObject bossObject) { }
+
+    private void HandleBossDefeatedExternal()
+    {
+        UnsubscribeBossEvents();
+        waitingForBossDefeat = false;
+    }
+
+    private void UnsubscribeBossEvents()
+    {
+        if (bossSpawner != null)
+        {
+            bossSpawner.OnBossSpawned -= TrackBossHealth;
+            bossSpawner.OnBossDefeated -= HandleBossDefeatedExternal;
+        }
     }
 
     private IEnumerator WaitWhileAlive(float duration)
@@ -280,6 +308,7 @@ public class EnemySpawner : MonoBehaviour
             State = WaveRunState.Cancelled;
             ClearTrackedEnemies();
             UnsubscribeHealth();
+            UnsubscribeBossEvents();
             return false;
         }
         return true;
@@ -287,23 +316,19 @@ public class EnemySpawner : MonoBehaviour
 
     private bool SpawnEnemy(GameObject prefab, EnemyWave wave)
     {
+        if (prefab == null) return false;
         if (!TrySpawnPosition(prefab, wave, out Vector3 position, out Quaternion rotation))
         {
-            Fail($"Oleada {CurrentWaveNumber}: no se encontró un punto libre en el NavMesh para {prefab.name}. Revisá los puntos y el radio de aparición.");
+            Fail($"Oleada {CurrentWaveNumber}: no se encontró un punto libre en el NavMesh para {prefab.name}.");
             return false;
         }
         GameObject instance = Instantiate(prefab, position, rotation);
         NavMeshAgent agent = instance.GetComponent<NavMeshAgent>();
-        if (!agent.isOnNavMesh)
+        if (agent != null && !agent.isOnNavMesh)
         {
             Destroy(instance);
             Fail($"Oleada {CurrentWaveNumber}: {prefab.name} no pudo colocarse sobre el NavMesh.");
             return false;
-        }
-
-        if (agent != null && wave.speedMultiplier != 1f)
-        {
-            agent.speed *= wave.speedMultiplier;
         }
 
         EnemyHealth health = instance.GetComponent<EnemyHealth>();
@@ -320,7 +345,7 @@ public class EnemySpawner : MonoBehaviour
         }
 
         var controller = instance.GetComponent<EnemyBaseController>();
-        if (controller != null && (wave.damageMultiplier != 1f || wave.speedMultiplier != 1f))
+        if (controller != null)
         {
             controller.ApplyWaveMultipliers(wave.damageMultiplier, wave.speedMultiplier);
         }
@@ -335,7 +360,7 @@ public class EnemySpawner : MonoBehaviour
         position = default;
         rotation = transform.rotation;
         NavMeshAgent agent = prefab.GetComponent<NavMeshAgent>();
-        var filter = new NavMeshQueryFilter { agentTypeID = agent.agentTypeID, areaMask = agent.areaMask };
+        var filter = new NavMeshQueryFilter { agentTypeID = agent != null ? agent.agentTypeID : 0, areaMask = agent != null ? agent.areaMask : NavMesh.AllAreas };
         List<Transform> points = wave.spawnPoints;
         var path = new NavMeshPath();
         for (int attempt = 0; attempt < Mathf.Max(1, runningSpawnAttempts); attempt++)
@@ -350,17 +375,20 @@ public class EnemySpawner : MonoBehaviour
             Vector2 offset = UnityEngine.Random.insideUnitCircle * wave.spawnRadius;
             Vector3 desired = point.position + new Vector3(offset.x, 0f, offset.y);
             if (!NavMesh.SamplePosition(desired, out NavMeshHit hit, Mathf.Max(.1f, runningSampleDistance), filter)) continue;
-            // La dispersión no debe saltar a un techo o isla desconectada del punto configurado.
             if (!NavMesh.SamplePosition(point.position, out NavMeshHit anchor, Mathf.Max(.1f, runningSampleDistance), filter)
                 || !NavMesh.CalculatePath(anchor.position, hit.position, filter, path)
                 || path.status != NavMeshPathStatus.PathComplete) continue;
-            Vector3 rootPosition = hit.position + Vector3.up * agent.baseOffset;
+
+            float baseOffset = agent != null ? agent.baseOffset : 0f;
+            Vector3 rootPosition = hit.position + Vector3.up * baseOffset;
             bool occupied = false;
             foreach (EnemyHealth other in aliveEnemies.Keys)
             {
                 if (other == null || other.IsDead) continue;
                 NavMeshAgent otherAgent = other.GetComponent<NavMeshAgent>();
-                float separation = agent.radius + (otherAgent != null ? otherAgent.radius : .5f);
+                float otherRadius = otherAgent != null ? otherAgent.radius : 0.5f;
+                float currentRadius = agent != null ? agent.radius : 0.5f;
+                float separation = currentRadius + otherRadius;
                 if ((other.transform.position - rootPosition).sqrMagnitude < separation * separation) { occupied = true; break; }
             }
             if (occupied) continue;
@@ -398,6 +426,32 @@ public class EnemySpawner : MonoBehaviour
         healthSubscribed = false;
     }
 
+    private void ResolveGameReferences()
+    {
+        if (playerHealth == null)
+        {
+            foreach (PlayerHealth candidate in FindObjectsByType<PlayerHealth>(FindObjectsSortMode.None))
+            {
+                if (candidate.gameObject.scene == gameObject.scene && candidate.CompareTag("Player"))
+                {
+                    playerHealth = candidate;
+                    break;
+                }
+            }
+        }
+        if (menu == null)
+        {
+            foreach (MenuBehaviour candidate in FindObjectsByType<MenuBehaviour>(FindObjectsSortMode.None))
+            {
+                if (candidate.gameObject.scene == gameObject.scene && !candidate.IsMainMenu)
+                {
+                    menu = candidate;
+                    break;
+                }
+            }
+        }
+    }
+
     public void CancelWaves()
     {
         if (!IsRunning) return;
@@ -406,6 +460,7 @@ public class EnemySpawner : MonoBehaviour
         waveRoutine = null;
         ClearTrackedEnemies();
         UnsubscribeHealth();
+        UnsubscribeBossEvents();
     }
 
     private void Fail(string error)
@@ -414,19 +469,36 @@ public class EnemySpawner : MonoBehaviour
         LastError = error;
         ClearTrackedEnemies();
         UnsubscribeHealth();
+        UnsubscribeBossEvents();
         Debug.LogError($"EnemySpawner: {error}", this);
     }
 
-    /// <summary>
-    /// Fuerza el reinicio completo de las oleadas desde la primera, limpiando el estado previo.
-    /// </summary>
     public bool ResetAndRestartWaves()
     {
         CancelWaves();
-
         State = WaveRunState.Idle;
         CurrentWaveIndex = -1;
-
         return StartWaves();
+    }
+
+    public void KillAllActiveEnemies()
+    {
+        List<EnemyHealth> currentAlive = new List<EnemyHealth>(aliveEnemies.Keys);
+        foreach (EnemyHealth enemy in currentAlive)
+        {
+            if (enemy != null && !enemy.IsDead)
+            {
+                enemy.TakeDamage(999999f);
+            }
+        }
+    }
+
+    public void ForceNextWave()
+    {
+        if (!IsRunning) return;
+        if (waveRoutine != null) StopCoroutine(waveRoutine);
+        KillAllActiveEnemies();
+        State = WaveRunState.Waiting;
+        waveRoutine = StartCoroutine(RunInfiniteWaves());
     }
 }
