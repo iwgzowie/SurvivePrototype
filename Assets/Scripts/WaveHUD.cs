@@ -1,25 +1,26 @@
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 
 /// <summary>
-/// Muestra en la interfaz de usuario la oleada actual y los enemigos restantes.
-/// Se suscribe a los eventos del EnemySpawner y oculta los avisos temporales.
+/// Muestra en la interfaz de usuario la oleada actual, enemigos restantes,
+/// cuenta regresiva para el Jefe y el temporizador del descanso/tienda.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class WaveHUD : MonoBehaviour
 {
-    //References
+    // Referencias
     [SerializeField] private EnemySpawner enemySpawner;
 
-    //Elementos UI
+    // Elementos UI
     [SerializeField] private TMP_Text waveText;
     [SerializeField] private TMP_Text enemiesText;
     [SerializeField] private TMP_Text statusText;
+    [SerializeField] private TMP_Text bossWarningText;
+    [SerializeField] private TMP_Text restTimerText;
 
-    //Config
+    // Configuración
     [SerializeField, Min(0.5f)] private float statusDisplayDuration = 2.5f;
 
     private EnemySpawner subscribedSpawner;
@@ -38,6 +39,7 @@ public sealed class WaveHUD : MonoBehaviour
         ClearStatusText();
         RefreshUI();
     }
+
     private void OnDisable()
     {
         UnsubscribeSpawner();
@@ -45,7 +47,7 @@ public sealed class WaveHUD : MonoBehaviour
 
     private void Update()
     {
-        if(subscribedSpawner != null && subscribedSpawner.IsRunning)
+        if (subscribedSpawner != null && subscribedSpawner.IsRunning)
         {
             UpdateEnemiesCount();
         }
@@ -72,6 +74,11 @@ public sealed class WaveHUD : MonoBehaviour
         {
             subscribedSpawner.OnWaveStarted += OnWaveStarted;
             subscribedSpawner.OnWaveCompleted += OnWaveCompleted;
+            subscribedSpawner.OnBossWaveApproaching += OnBossWaveApproaching;
+            subscribedSpawner.OnBossWaveStarted += OnBossWaveStarted;
+            subscribedSpawner.OnRestStarted += OnRestStarted;
+            subscribedSpawner.OnRestTimerUpdated += OnRestTimerUpdated;
+            subscribedSpawner.OnRestFinished += OnRestFinished;
         }
     }
 
@@ -81,28 +88,33 @@ public sealed class WaveHUD : MonoBehaviour
         {
             subscribedSpawner.OnWaveStarted -= OnWaveStarted;
             subscribedSpawner.OnWaveCompleted -= OnWaveCompleted;
+            subscribedSpawner.OnBossWaveApproaching -= OnBossWaveApproaching;
+            subscribedSpawner.OnBossWaveStarted -= OnBossWaveStarted;
+            subscribedSpawner.OnRestStarted -= OnRestStarted;
+            subscribedSpawner.OnRestTimerUpdated -= OnRestTimerUpdated;
+            subscribedSpawner.OnRestFinished -= OnRestFinished;
         }
         subscribedSpawner = null;
     }
+
     public void RefreshUI()
     {
         ResolveSpawner();
 
         if (enemySpawner == null)
         {
-            if (waveText != null) waveText.text = "Oleada: - / -";
+            if (waveText != null) waveText.text = "Oleada: -";
             if (enemiesText != null) enemiesText.text = "Enemigos: -";
             return;
         }
 
-        UpdateWaveText(enemySpawner.CurrentWaveNumber, enemySpawner.CurrentWaveNumber);
+        UpdateWaveText(enemySpawner.CurrentWaveNumber);
         UpdateEnemiesCount();
     }
 
     private void OnWaveStarted(int waveIndex, EnemyWave wave)
     {
-        UpdateWaveText(waveIndex + 1, enemySpawner.CurrentWaveNumber);
-
+        UpdateWaveText(waveIndex + 1);
         ClearStatusText();
     }
 
@@ -111,11 +123,43 @@ public sealed class WaveHUD : MonoBehaviour
         ShowTemporaryStatus("¡Oleada Despejada!");
     }
 
-    private void OnAllWavesCompleted()
+    private void OnBossWaveApproaching(int wavesLeft)
     {
-        if (statusCoroutine != null) StopCoroutine(statusCoroutine);
-        if (statusText != null) statusText.text = "¡Todas las oleadas completadas!";
-        if (enemiesText != null) enemiesText.text = "Enemigos restantes: 0";
+        if (bossWarningText != null)
+        {
+            bossWarningText.text = $"Faltan {wavesLeft} oleada(s) para el Jefe";
+        }
+    }
+
+    private void OnBossWaveStarted()
+    {
+        if (bossWarningText != null)
+        {
+            bossWarningText.text = "¡¡JEFE EN CAMINO!!";
+        }
+        ShowTemporaryStatus("¡ALERTA DE JEFE!");
+    }
+
+    private void OnRestStarted()
+    {
+        ShowTemporaryStatus("¡Jefe derrotado! Fase de descanso");
+        if (bossWarningText != null) bossWarningText.text = "";
+    }
+
+    private void OnRestTimerUpdated(float timeRemaining)
+    {
+        if (restTimerText != null)
+        {
+            int minutes = Mathf.FloorToInt(timeRemaining / 60f);
+            int seconds = Mathf.FloorToInt(timeRemaining % 60f);
+            restTimerText.text = $"Tiempo de descanso: {minutes:00}:{seconds:00}";
+        }
+    }
+
+    private void OnRestFinished()
+    {
+        if (restTimerText != null) restTimerText.text = "";
+        ShowTemporaryStatus("¡Fin del descanso! Preparándote para la siguiente oleada...");
     }
 
     private void ShowTemporaryStatus(string message)
@@ -146,11 +190,11 @@ public sealed class WaveHUD : MonoBehaviour
         }
     }
 
-    private void UpdateWaveText(int currentWave, int totalWaves)
+    private void UpdateWaveText(int currentWave)
     {
         if (waveText != null)
         {
-            waveText.text = $"Oleada {currentWave} / {totalWaves}";
+            waveText.text = $"Oleada {currentWave}";
         }
     }
 

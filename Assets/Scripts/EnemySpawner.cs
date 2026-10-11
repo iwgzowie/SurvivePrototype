@@ -25,10 +25,13 @@ public class EnemySpawner : MonoBehaviour
 
     [Header("Oleadas e Infinito")]
     [SerializeField] private List<EnemyWave> baseWaveTemplates = new List<EnemyWave>();
-    [SerializeField] private int wavesBeforeBoss = 3;
     [SerializeField] private BossSpawner bossSpawner;
     [SerializeField] private float restDurationAfterBoss = 120f;
     [SerializeField] private bool autoStart = true;
+
+    [Header("Configuracion del Jefe Aleatoria")]
+    [SerializeField, Min(1)] private int minWavesBeforeBoss = 2;
+    [SerializeField, Min(1)] private int maxWavesBeforeBoss = 5;
 
     [Header("Partida")]
     [SerializeField] private PlayerHealth playerHealth;
@@ -39,8 +42,10 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField, Min(0.1f)] private float navMeshSampleDistance = 2f;
     [SerializeField, Min(1)] private int maxSpawnAttempts = 32;
 
-    [Header("Limites")]
-    [SerializeField, Min(1)] private int maxSimultaneousEnemies = 10;
+    [Header("Limites de Enemigos Simultaneos")]
+    [SerializeField, Min(1)] private int baseSimultaneousEnemies = 8;
+    [SerializeField, Min(1)] private int maxSimultaneousLimit = 20;
+    [SerializeField, Min(1)] private int enemiesIncreasePerWave = 1;
 
     private readonly Dictionary<EnemyHealth, Action> aliveEnemies = new Dictionary<EnemyHealth, Action>();
     private readonly List<EnemyHealth> removedEnemies = new List<EnemyHealth>();
@@ -51,6 +56,10 @@ public class EnemySpawner : MonoBehaviour
     private int nextSpawnPoint;
     private bool waitingForBossDefeat = false;
 
+    // Variables internas para el ciclo de oleadas y jefes
+    private int wavesForCurrentBossCycle;
+    private int wavesPassedInCurrentCycle = 0;
+
     // Declaración recuperada para evitar errores de contexto
     public int SpawnedInCurrentWave { get; private set; }
 
@@ -60,7 +69,10 @@ public class EnemySpawner : MonoBehaviour
     public int CurrentWaveNumber => CurrentWaveIndex + 1;
 
     // Cantidad de oleadas que faltan para el jefe
-    public int WavesUntilBoss => wavesBeforeBoss - (CurrentWaveNumber % wavesBeforeBoss);
+    public int WavesUntilBoss => Mathf.Max(0, wavesForCurrentBossCycle - wavesPassedInCurrentCycle);
+
+    // Límite activo de enemigos simultáneos calculado según la oleada actual
+    public int CurrentMaxSimultaneousEnemies => Mathf.Min(maxSimultaneousLimit, baseSimultaneousEnemies + (CurrentWaveIndex * enemiesIncreasePerWave));
 
     public float RestTimeRemaining { get; private set; } = 0f;
     public int AliveEnemyCount => aliveEnemies.Count;
@@ -131,11 +143,21 @@ public class EnemySpawner : MonoBehaviour
         runningSpawnAttempts = maxSpawnAttempts;
         CurrentWaveIndex = -1;
 
+        GenerateNewBossCycle();
+
         playerHealth.OnDeath += CancelWaves;
         healthSubscribed = true;
         State = WaveRunState.Waiting;
         waveRoutine = StartCoroutine(RunInfiniteWaves());
         return true;
+    }
+
+    private void GenerateNewBossCycle()
+    {
+        wavesPassedInCurrentCycle = 0;
+        int minRange = Mathf.Min(minWavesBeforeBoss, maxWavesBeforeBoss);
+        int maxRange = Mathf.Max(minWavesBeforeBoss, maxWavesBeforeBoss);
+        wavesForCurrentBossCycle = UnityEngine.Random.Range(minRange, maxRange + 1);
     }
 
     private IEnumerator RunInfiniteWaves()
@@ -145,10 +167,11 @@ public class EnemySpawner : MonoBehaviour
         while (CanContinue())
         {
             CurrentWaveIndex++;
+            wavesPassedInCurrentCycle++;
             SpawnedInCurrentWave = 0;
             nextSpawnPoint = 0;
 
-            bool isBossWave = (CurrentWaveNumber % wavesBeforeBoss == 0);
+            bool isBossWave = (wavesPassedInCurrentCycle >= wavesForCurrentBossCycle);
 
             if (!isBossWave)
             {
@@ -192,7 +215,7 @@ public class EnemySpawner : MonoBehaviour
                 int melee = currentWave.chasingCount, ranged = currentWave.chasingRangedCount, patrol = currentWave.patrolCount;
                 while ((long)melee + ranged + patrol > 0 && CanContinue())
                 {
-                    while (aliveEnemies.Count >= maxSimultaneousEnemies && CanContinue())
+                    while (aliveEnemies.Count >= CurrentMaxSimultaneousEnemies && CanContinue())
                     {
                         yield return new WaitForSeconds(0.5f);
                     }
@@ -225,6 +248,8 @@ public class EnemySpawner : MonoBehaviour
 
             if (isBossWave && CanContinue())
             {
+                GenerateNewBossCycle();
+
                 State = WaveRunState.Resting;
                 OnRestStarted?.Invoke();
                 RestTimeRemaining = restDurationAfterBoss;
