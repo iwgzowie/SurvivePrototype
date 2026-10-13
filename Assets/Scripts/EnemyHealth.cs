@@ -31,6 +31,9 @@ public class EnemyHealth : MonoBehaviour
     public event Action<float, float> OnHealthChanged;
     public event Action OnDeath;
 
+    public float MaxHealth => maxHealth;
+    public float CurrentHealth => currentHealth;
+
     private bool isDead = false;
     public bool IsDead => isDead;
 

@@ -27,7 +27,7 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField] private List<EnemyWave> baseWaveTemplates = new List<EnemyWave>();
     [SerializeField] private BossSpawner bossSpawner;
     [SerializeField] private float restDurationAfterBoss = 120f;
-    [SerializeField] private bool autoStart = true;
+    [SerializeField] private bool autoStart = false;
 
     [Header("Configuracion del Jefe Aleatoria")]
     [SerializeField, Min(1)] private int minWavesBeforeBoss = 2;
