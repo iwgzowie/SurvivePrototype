@@ -194,6 +194,11 @@ public class BossBase : MonoBehaviour
     private void GrantBossRewards()
     {
         Debug.Log("¡Recompensas otorgadas al jugador!");
+
+        if (GameStatsManager.Instance != null)
+        {
+            GameStatsManager.Instance.AddBossKill();
+        }
     }
 
     private void OnDrawGizmosSelected()

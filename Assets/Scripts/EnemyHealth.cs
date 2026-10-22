@@ -55,6 +55,11 @@ public class EnemyHealth : MonoBehaviour
         }
     }
 
+    public void Update()
+    {
+        
+    }
+
     public void TakeDamage(float amount, Vector3 hitPosition = default)
     {
         if (isDead) return;
@@ -153,10 +158,16 @@ public class EnemyHealth : MonoBehaviour
 
         //  Destruir tras el retardo
         Destroy(gameObject, destroyDelay);
+
+        if (GameStatsManager.Instance != null && GetComponent<BossBase>() == null)
+        {
+            GameStatsManager.Instance.AddEnemyKill();
+        }
     }
     public void ApplyWaveMultipliers(float healthMult)
     {
         maxHealth *= healthMult;
         currentHealth = maxHealth;
     }
+
 }
