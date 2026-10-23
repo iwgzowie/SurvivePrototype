@@ -1,9 +1,7 @@
 using System;
 using System.Collections;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.AI;
-using UnityEngine.Rendering;
 
 public class BossBase : MonoBehaviour
 {
@@ -14,13 +12,16 @@ public class BossBase : MonoBehaviour
     [SerializeField] private Transform targetPlayer;
     [SerializeField] private GameObject minionPrefab;
 
-    [Header("Estadisticas de Ataque")]
+    [Header("Datos de Visualización UI")]
+    [SerializeField] private string bossName = "Guardián Ancestral";
+
+    [Header("Estadísticas de Ataque")]
     [SerializeField] private float attackRange = 3f;
     [SerializeField] private float areaAttackRadius = 6f;
     [SerializeField] private float areaAttackDamage = 25f;
     [SerializeField] private float areaAttackCooldown = 8f;
 
-    [Header("Invocacion de Esbirros")]
+    [Header("Invocación de Esbirros")]
     [SerializeField] private int minionsToSpawn = 2;
     [SerializeField] private float summonCooldown = 12f;
 
@@ -28,17 +29,33 @@ public class BossBase : MonoBehaviour
     [SerializeField] private float rageHealthThreshold = 0.5f;
     [SerializeField] private float rageSpeedMultiplier = 1.35f;
 
+    [Header("Drops de Botín")]
+    [Tooltip("La llave que dropea sí o sí al 100%")]
+    [SerializeField] private GameObject guaranteedKeyPrefab;
+    [SerializeField] private GameObject coinPrefab;
+    [SerializeField] private int minCoins = 5;
+    [SerializeField] private int maxCoins = 10;
+    [SerializeField] private GameObject healthPotionPrefab;
+    [Range(0f, 1f)][SerializeField] private float potionDropChance = 0.75f;
+    [SerializeField] private int maxPotions = 2;
+    [SerializeField] private float dropScatterRadius = 2f;
+
+    [Header("Recompensa Directa de Victoria")]
+    
+    [SerializeField] private int directGoldReward = 150;
+
     private NavMeshAgent navAgent;
     private EnemyHealth healthComponent;
     private bool isEnraged = false;
     private float nextAreaAttackTime;
     private float nextSummonTime;
 
-    // Eventos para UI y Sistemas de Recompensas
+    
     public static event Action<BossBase> OnBossSpawnedUI;
     public static event Action OnBossDefeatedUI;
 
     public EnemyHealth Health => healthComponent;
+    public string BossName => bossName;
 
     private void Awake()
     {
@@ -50,6 +67,7 @@ public class BossBase : MonoBehaviour
     {
         FindPlayer();
 
+        
         OnBossSpawnedUI?.Invoke(this);
 
         if (healthComponent != null)
@@ -105,7 +123,7 @@ public class BossBase : MonoBehaviour
     private void EnterRagePhase()
     {
         isEnraged = true;
-        Debug.Log("¡EL BOSS ENTRO EN FASE DE FURIA!");
+        Debug.Log("¡EL BOSS ENTRÓ EN FASE DE FURIA!");
 
         if (navAgent != null)
         {
@@ -122,19 +140,17 @@ public class BossBase : MonoBehaviour
 
         float distanceToPlayer = Vector3.Distance(transform.position, targetPlayer.position);
 
-        // Ataque Cuerpo a Cuerpo Básico (utilizando 'attackRange')
         if (distanceToPlayer <= attackRange)
         {
+            
         }
 
-        // Ataque en Área
         if (distanceToPlayer <= areaAttackRadius && Time.time >= nextAreaAttackTime)
         {
             ExecuteAreaAttack();
             nextAreaAttackTime = Time.time + areaAttackCooldown;
         }
 
-        // Invocación de Esbirros
         if (Time.time >= nextSummonTime)
         {
             SummonMinions();
@@ -144,7 +160,6 @@ public class BossBase : MonoBehaviour
 
     private void ExecuteAreaAttack()
     {
-        Debug.Log("¡Boss ejecuta Ataque en Área!");
         Collider[] hitColliders = Physics.OverlapSphere(transform.position, areaAttackRadius);
         foreach (var hit in hitColliders)
         {
@@ -163,7 +178,6 @@ public class BossBase : MonoBehaviour
     {
         if (minionPrefab == null) return;
 
-        Debug.Log("¡Boss invocando esbirros!");
         for (int i = 0; i < minionsToSpawn; i++)
         {
             Vector3 spawnOffset = UnityEngine.Random.insideUnitSphere * 3f;
@@ -184,21 +198,77 @@ public class BossBase : MonoBehaviour
             healthComponent.OnDeath -= HandleBossDeath;
         }
 
-        OnBossDefeatedUI?.Invoke();
-
+        SpawnLoot();
         GrantBossRewards();
+
+        OnBossDefeatedUI?.Invoke();
 
         Destroy(gameObject, 0.2f);
     }
 
+    private void SpawnLoot()
+    {
+        Vector3 basePosition = transform.position;
+
+       
+        if (guaranteedKeyPrefab != null)
+        {
+            Instantiate(guaranteedKeyPrefab, basePosition + Vector3.up * 0.5f, Quaternion.identity);
+        }
+
+        
+        if (coinPrefab != null)
+        {
+            int coinCount = UnityEngine.Random.Range(minCoins, maxCoins + 1);
+            for (int i = 0; i < coinCount; i++)
+            {
+                Instantiate(coinPrefab, GetRandomDropPosition(basePosition), Quaternion.identity);
+            }
+        }
+
+        
+        if (healthPotionPrefab != null)
+        {
+            for (int i = 0; i < maxPotions; i++)
+            {
+                if (UnityEngine.Random.value <= potionDropChance)
+                {
+                    Instantiate(healthPotionPrefab, GetRandomDropPosition(basePosition), Quaternion.identity);
+                }
+            }
+        }
+    }
+
+    private Vector3 GetRandomDropPosition(Vector3 center)
+    {
+        Vector2 randomCircle = UnityEngine.Random.insideUnitCircle * dropScatterRadius;
+        Vector3 candidatePos = center + new Vector3(randomCircle.x, 0.3f, randomCircle.y);
+
+        if (NavMesh.SamplePosition(candidatePos, out NavMeshHit hit, 2f, NavMesh.AllAreas))
+        {
+            return hit.position + Vector3.up * 0.2f;
+        }
+
+        return candidatePos;
+    }
+
     private void GrantBossRewards()
     {
-        Debug.Log("¡Recompensas otorgadas al jugador!");
+        
+        if (targetPlayer != null)
+        {
+            // Ejemplo: targetPlayer.GetComponent<PlayerInventory>()?.AddGold(directGoldReward);
+            
+            Debug.Log($"[Victoria] Otorgados: {directGoldReward} Oro directo.");
+        }
     }
 
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, areaAttackRadius);
+
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, dropScatterRadius);
     }
 }
