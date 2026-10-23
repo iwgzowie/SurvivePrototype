@@ -121,6 +121,11 @@ public class EnemySpawner : MonoBehaviour
 
     public bool StartWaves()
     {
+        if (GameStatsManager.Instance != null)
+        {
+            GameStatsManager.Instance.ResetStats();
+        }
+
         if (!isActiveAndEnabled || State != WaveRunState.Idle) return false;
         ResolveGameReferences();
         if (playerHealth == null)
@@ -170,6 +175,11 @@ public class EnemySpawner : MonoBehaviour
             wavesPassedInCurrentCycle++;
             SpawnedInCurrentWave = 0;
             nextSpawnPoint = 0;
+
+            if (GameStatsManager.Instance != null)
+            {
+                GameStatsManager.Instance.waveReached = CurrentWaveNumber;
+            }
 
             bool isBossWave = (wavesPassedInCurrentCycle >= wavesForCurrentBossCycle);
 
@@ -486,6 +496,15 @@ public class EnemySpawner : MonoBehaviour
         ClearTrackedEnemies();
         UnsubscribeHealth();
         UnsubscribeBossEvents();
+    }
+
+    public void SkipRest()
+    {
+        if (State == WaveRunState.Resting)
+        {
+            RestTimeRemaining = 0f;
+            Debug.Log("EnemySpawner: ¡Descanso salteado por comando de depuración!");
+        }
     }
 
     private void Fail(string error)

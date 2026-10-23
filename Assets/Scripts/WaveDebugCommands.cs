@@ -47,6 +47,12 @@ public class WaveDebugCommands : MonoBehaviour
             {
                 KillActiveBoss();
             }
+
+            // Tecla T: Saltear el tiempo de descanso post-Boss
+            if (Keyboard.current.tKey.wasPressedThisFrame)
+            {
+                SkipRestPeriod();
+            }
         }
     }
 
@@ -54,12 +60,13 @@ public class WaveDebugCommands : MonoBehaviour
     {
         if (!showDebugMenu) return;
 
-        GUILayout.BeginArea(new Rect(20, 20, 310, 160), "=== MENÚ DE DEBUG (Oleadas) ===", GUI.skin.window);
+        GUILayout.BeginArea(new Rect(20, 20, 340, 190), "=== MENÚ DE DEBUG (Oleadas) ===", GUI.skin.window);
         GUILayout.Space(5);
         GUILayout.Label("Usa las siguientes teclas con el menú abierto:");
         GUILayout.Label("[N] - Resetear oleada / Reiniciar partida");
         GUILayout.Label("[M] - Matar enemigos de la oleada actual");
         GUILayout.Label("[B] - Matar instantáneamente al Boss activo");
+        GUILayout.Label("[T] - Saltear descanso (2 min tras el Boss)");
         GUILayout.Space(5);
         if (GUILayout.Button("Cerrar Menú (Presionar K)"))
         {
@@ -97,6 +104,18 @@ public class WaveDebugCommands : MonoBehaviour
         if (!bossFound)
         {
             Debug.Log("Debug: No se encontró ningún Boss activo en la escena.");
+        }
+    }
+    private void SkipRestPeriod()
+    {
+        if (spawner.State == WaveRunState.Resting)
+        {
+            spawner.SkipRest();
+            Debug.Log("Debug: Tiempo de descanso salteado.");
+        }
+        else
+        {
+            Debug.Log("Debug: No hay un periodo de descanso activo en este momento.");
         }
     }
 

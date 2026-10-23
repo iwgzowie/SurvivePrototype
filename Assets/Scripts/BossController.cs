@@ -199,7 +199,7 @@ public class BossBase : MonoBehaviour
         }
 
         SpawnLoot();
-        GrantBossRewards();
+        
 
         OnBossDefeatedUI?.Invoke();
 
@@ -252,16 +252,7 @@ public class BossBase : MonoBehaviour
         return candidatePos;
     }
 
-    private void GrantBossRewards()
-    {
-        
-        if (targetPlayer != null)
-        {
-            // Ejemplo: targetPlayer.GetComponent<PlayerInventory>()?.AddGold(directGoldReward);
-            
-            Debug.Log($"[Victoria] Otorgados: {directGoldReward} Oro directo.");
-        }
-    }
+  
 
     private void OnDrawGizmosSelected()
     {
