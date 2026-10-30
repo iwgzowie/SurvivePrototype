@@ -1,0 +1,63 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0db3882030c4becabe87f9bb966b007, type: 3}
+  m_Name: WD_HuntingRifle
+  m_EditorClassIdentifier: Assembly-CSharp::Survive.Items.WeaponDefinition
+  displayName: Rifle de caza
+  icon: {fileID: 21300000, guid: 63ce1141a7f7a52459417ba6ad4e9c71, type: 3}
+  damage: 75
+  range: 160
+  shotsPerSecond: 1.2
+  automatic: 1
+  magazineSize: 5
+  startingReserveAmmo: 30
+  reloadDuration: 2.6
+  pelletsPerShot: 1
+  spreadDegrees: 0.15
+  recoilDegrees: 2.6
+  recoilBackDistance: 0.04
+  recoilRecoverySpeed: 11
+  shotSound: {fileID: 8300000, guid: d32762afb6957734c868f5665186e59c, type: 3}
+  shotVariations:
+  - {fileID: 8300000, guid: d32762afb6957734c868f5665186e59c, type: 3}
+  - {fileID: 8300000, guid: 0a13ad5c7b8273b4db6e115cf774e6f5, type: 3}
+  - {fileID: 8300000, guid: 83aedb01f3328844a952777b56a5f5e4, type: 3}
+  - {fileID: 8300000, guid: 7cda47475fa4d2141ae76d13e04adf62, type: 3}
+  shotMechanismVariations:
+  - {fileID: 8300000, guid: 2bacdb02b0f698f4bb5d621adf95ccda, type: 3}
+  - {fileID: 8300000, guid: b4d70a6be09c1094197ea280f8567ff3, type: 3}
+  - {fileID: 8300000, guid: 36d34eae62ca1c04e8f7696a809a9b8c, type: 3}
+  - {fileID: 8300000, guid: 0648f058cacca1c42a4d92743801cadb, type: 3}
+  shotTailVariations:
+  - {fileID: 8300000, guid: 7f9a016ae309c484d9a6c5f22d518f29, type: 3}
+  - {fileID: 8300000, guid: c76d370acac5eb64b9e3e664036aefb7, type: 3}
+  - {fileID: 8300000, guid: aeb9a4a2fabbabf4d866673c01caeff5, type: 3}
+  - {fileID: 8300000, guid: 45cfdc08b0bf8434488f86c6278a98e2, type: 3}
+  reloadSound: {fileID: 0}
+  reloadAudioCues:
+  - normalizedTime: 0.12
+    clip: {fileID: 8300000, guid: 452be7da731b405ca996fe37bb4d8399, type: 3}
+    volume: 0.9
+  - normalizedTime: 0.41
+    clip: {fileID: 8300000, guid: cd7cfa8068cf4529864da78021370178, type: 3}
+    volume: 0.7
+  - normalizedTime: 0.62
+    clip: {fileID: 8300000, guid: 9e16d26d9107458aad5802a33a7daef0, type: 3}
+    volume: 1
+  - normalizedTime: 0.83
+    clip: {fileID: 8300000, guid: 6118ca330e1e42e5b160a90bad0c9095, type: 3}
+    volume: 1
+  reloadVolume: 0.52
+  shotVolume: 0.36
+  shotMechanismVolume: 0.09
+  shotTailVolume: 0.035
+  vfxProfile: {fileID: 11400000, guid: 15c9d62bf3663fb42b5579be1e214052, type: 2}

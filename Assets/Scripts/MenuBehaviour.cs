@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
+using Survive.Character;
+using System.Collections;
 
 /// <summary>Coordina navegación, pausa y fin de partida sin depender de un personaje concreto.</summary>
 [DefaultExecutionOrder(1200)]
@@ -21,12 +23,14 @@ public class MenuBehaviour : MonoBehaviour
     private bool sceneLoading;
     private bool waitForPointerRelease;
     private float timeScaleBeforePause = 1f;
+    private CharacterCreationMenu characterCreation;
 
     public bool IsPaused { get; private set; }
     public bool IsGameOver { get; private set; }
     public bool IsVictory { get; private set; }
     public bool IsFinished => IsGameOver || IsVictory;
     public bool IsMainMenu => isMainMenu;
+    public bool IsCreatingCharacter => characterCreation != null && characterCreation.IsOpen;
 
     private void Start()
     {
@@ -49,6 +53,10 @@ public class MenuBehaviour : MonoBehaviour
         wantsPause |= Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame;
         if (wantsPause)
         {
+            foreach (Survive.Economy.PlayerVendorController shop in FindObjectsByType<Survive.Economy.PlayerVendorController>(FindObjectsSortMode.None))
+                if (shop.IsOpen) { shop.Close(); return; }
+            foreach (Survive.Turrets.PlayerTurretController builder in FindObjectsByType<Survive.Turrets.PlayerTurretController>(FindObjectsSortMode.None))
+                if (builder.IsPlacing) { builder.CancelPlacement(); return; }
             if (IsPaused)
             {
                 ResumeGame();
@@ -81,6 +89,7 @@ public class MenuBehaviour : MonoBehaviour
 
     private void OnDisable()
     {
+        if (characterCreation != null) characterCreation.Close();
         if (IsPaused || IsFinished)
         {
             Time.timeScale = 1f;
@@ -89,6 +98,38 @@ public class MenuBehaviour : MonoBehaviour
 
     public void StartGame()
     {
+        if (sceneLoading || IsCreatingCharacter) return;
+        if (isMainMenu)
+        {
+            SidekickCharacterCatalog catalog = SidekickCharacterCatalog.Load();
+            if (catalog == null)
+            {
+                Debug.LogError("Falta el catálogo Sidekick. Ejecutá Survive/Character/Crear e integrar catálogo Sidekick en el Editor.", this);
+                return;
+            }
+            if (!CharacterProfileStore.TryLoad(out CharacterProfile profile) || !catalog.Validate(profile, out _))
+            {
+                characterCreation = CharacterCreationMenu.Open(this, catalog, ConfirmCharacter);
+                return;
+            }
+        }
+        ChangeScene(gameplayScene);
+    }
+
+    private string ConfirmCharacter(CharacterProfile profile)
+    {
+        SidekickCharacterCatalog catalog = SidekickCharacterCatalog.Load();
+        if (catalog == null) return "No se pudo cargar el catálogo de personajes.";
+        if (!catalog.Validate(profile, out string error)) return error;
+        if (!CharacterProfileStore.TrySave(profile, out error)) return error;
+        StartCoroutine(EnterGameAfterCreation());
+        return null;
+    }
+
+    private IEnumerator EnterGameAfterCreation()
+    {
+        // La UI libera el estudio 3D y restaura las cámaras del menú antes de cargar la partida.
+        yield return null;
         ChangeScene(gameplayScene);
     }
 

@@ -1,4 +1,5 @@
 using UnityEngine;
+using Survive.Economy;
 
 public class CoinPickup : MonoBehaviour
 {
@@ -16,6 +17,7 @@ public class CoinPickup : MonoBehaviour
     [SerializeField] private GameObject collectVfx;
 
     private Vector3 startPosition;
+    private bool collected;
 
     private void Start()
     {
@@ -37,15 +39,13 @@ public class CoinPickup : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("Player"))
+        PlayerWallet wallet = other.GetComponentInParent<PlayerWallet>();
+        PlayerHealth health = other.GetComponentInParent<PlayerHealth>();
+        if (!collected && wallet != null && coinValue > 0 && Time.timeScale > 0f
+            && (health == null || !health.IsDead))
         {
-            // Integración con el sistema de inventario o dinero del jugador:
-            // Ejemplo:
-            // PlayerInventory inventory = other.GetComponent<PlayerInventory>();
-            // if (inventory != null)
-            // {
-            //     inventory.AddCoins(coinValue);
-            // }
+            collected = true;
+            wallet.AddCoins(coinValue);
 
             Debug.Log($"¡Moneda recolectada! +{coinValue}");
 

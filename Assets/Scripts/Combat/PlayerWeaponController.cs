@@ -1,3 +1,4 @@
+using System;
 using Survive.Items;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -19,6 +20,9 @@ namespace Survive.Combat
         [Header("Referencias del jugador")]
         [SerializeField] private UPPCharacterMovementComponent movement;
         [SerializeField] private PlayerHealth playerHealth;
+        [SerializeField] private PlayerWeaponInventory inventory;
+        [SerializeField] private Animator weaponAnimator;
+        [SerializeField] private AnimationClip reloadAnimationClip;
         [SerializeField, Tooltip("Punto de agarre. Sin referencia, busca WeaponSocket y luego la mano derecha humanoide.")]
         private Transform weaponSocket;
 
@@ -36,6 +40,10 @@ namespace Survive.Combat
         [Header("Disparo")]
         [SerializeField, Tooltip("Botón de disparo editable. Por defecto: clic izquierdo y gatillo derecho de gamepad.")]
         private InputAction fireAction = CreateDefaultFireAction();
+        [SerializeField] private InputAction reloadAction = CreateDefaultReloadAction();
+        [SerializeField] private InputAction dropAction = CreateDefaultDropAction();
+        [SerializeField, Tooltip("Inicia recarga al vaciar el cargador si todavía queda reserva.")]
+        private bool automaticReloadOnEmpty = true;
         [SerializeField, Tooltip("Capas que bloquean los disparos y pueden recibir impactos. Se ignoran triggers y el propio jugador.")]
         private LayerMask hitMask = ~0;
         [SerializeField, Tooltip("Impide disparar mientras el cursor está libre, por ejemplo al abrir un menú.")]
@@ -61,6 +69,35 @@ namespace Survive.Combat
         private float nextShotTime;
         private readonly RaycastHit[] rayHits = new RaycastHit[32];
         private readonly Collider[] overlapHits = new Collider[16];
+        private readonly RaycastHit[] pelletHits = new RaycastHit[64];
+        private float hitMarkerEndsAt;
+        private float autoReloadReadyAt;
+        private PlayerWeaponPose weaponPose;
+        private int reloadLayer = -1;
+        private bool hasReloadParameters;
+        private RuntimeAnimatorController cachedAnimatorController;
+        private static readonly int ReloadingHash = Animator.StringToHash("WeaponReloading");
+        private static readonly int ReloadSpeedHash = Animator.StringToHash("WeaponReloadSpeed");
+        private float crosshairKick;
+
+        public event Action<WeaponItem> WeaponChanged;
+        public event Action<WeaponItem> WeaponStateChanged;
+        public event Action<WeaponItem> ShotFired;
+        public PlayerHealth Health => playerHealth;
+        public PlayerWeaponInventory Inventory => inventory != null ? inventory : inventory = GetComponent<PlayerWeaponInventory>();
+        public bool IsAiming => CanOperateWeapon() && movement.IsAiming;
+        internal Transform WeaponOwnerRoot => OwnerRoot;
+        internal bool CanChangeWeaponSelection => isActiveAndEnabled
+            && !(GetComponent<Survive.Turrets.PlayerTurretController>()?.BlocksWeaponInput ?? false)
+            && movement != null && movement.isActiveAndEnabled && movement.IsPlayer
+            && !movement.DisableAllMove && !movement.IsRolling
+            && (playerHealth == null || !playerHealth.IsDead) && Time.timeScale > 0f
+            && (!requireLockedCursor || Cursor.lockState == CursorLockMode.Locked);
+
+        public bool IsReloadAnimationActive => weaponAnimator != null && reloadLayer >= 0
+            && (weaponAnimator.GetCurrentAnimatorStateInfo(reloadLayer).IsTag("WeaponReload")
+                || (weaponAnimator.IsInTransition(reloadLayer)
+                    && weaponAnimator.GetNextAnimatorStateInfo(reloadLayer).IsTag("WeaponReload")));
 
         public WeaponItem EquippedWeapon => equippedWeapon != null && equippedWeapon.IsEquipped
             ? equippedWeapon
@@ -73,6 +110,22 @@ namespace Survive.Combat
             var action = new InputAction("Fire", InputActionType.Button);
             action.AddBinding("<Mouse>/leftButton");
             action.AddBinding("<Gamepad>/rightTrigger");
+            return action;
+        }
+
+        private static InputAction CreateDefaultReloadAction()
+        {
+            var action = new InputAction("Reload", InputActionType.Button);
+            action.AddBinding("<Keyboard>/r");
+            action.AddBinding("<Gamepad>/buttonWest");
+            return action;
+        }
+
+        private static InputAction CreateDefaultDropAction()
+        {
+            var action = new InputAction("DropWeapon", InputActionType.Button);
+            action.AddBinding("<Keyboard>/g");
+            action.AddBinding("<Gamepad>/dpad/down");
             return action;
         }
 
@@ -89,12 +142,25 @@ namespace Survive.Combat
         private void OnEnable()
         {
             fireAction ??= CreateDefaultFireAction();
+            reloadAction ??= CreateDefaultReloadAction();
+            dropAction ??= CreateDefaultDropAction();
             fireAction.Enable();
+            reloadAction.Enable();
+            dropAction.Enable();
+            SubscribeWeapon();
+            SyncReloadAnimation();
+            WeaponStateChanged?.Invoke(EquippedWeapon);
         }
 
         private void OnDisable()
         {
             fireAction?.Disable();
+            reloadAction?.Disable();
+            dropAction?.Disable();
+            equippedWeapon?.CancelReload();
+            SyncReloadAnimation();
+            UnsubscribeWeapon();
+            WeaponStateChanged?.Invoke(EquippedWeapon);
             RestoreDebugCrosshair();
             RestoreGripRotation();
         }
@@ -102,6 +168,9 @@ namespace Survive.Combat
         private void OnDestroy()
         {
             fireAction?.Dispose();
+            reloadAction?.Dispose();
+            dropAction?.Dispose();
+            UnsubscribeWeapon();
             RestoreDebugCrosshair();
             if (fallbackSocket != null)
             {
@@ -116,10 +185,25 @@ namespace Survive.Combat
             crosshairThickness = Mathf.Max(1f, crosshairThickness);
         }
 
+        private void Update()
+        {
+            // Una capa vacía de cuerpo superior no debe reemplazar la pose de aim.
+            // Mantenerla sólo durante la acción y su transición de salida.
+            SyncReloadAnimation();
+        }
+
         private void LateUpdate()
         {
+            crosshairKick = Mathf.MoveTowards(crosshairKick, 0f, Time.deltaTime * 32f);
             if (EquippedWeapon == null)
             {
+                if (!ReferenceEquals(equippedWeapon, null))
+                {
+                    UnsubscribeWeapon();
+                    equippedWeapon = null;
+                    WeaponChanged?.Invoke(null);
+                    WeaponStateChanged?.Invoke(null);
+                }
                 equippedWeapon = null;
                 RestoreDebugCrosshair();
                 return;
@@ -128,6 +212,24 @@ namespace Survive.Combat
             ResolveCamera();
             UpdateDebugCrosshair();
             RestoreGripRotation();
+            if (CanOperateWeapon())
+            {
+                equippedWeapon.TickReload(Time.deltaTime);
+                if (dropAction != null && dropAction.WasPressedThisFrame())
+                {
+                    DropInFront();
+                    return;
+                }
+                if (reloadAction != null && reloadAction.WasPressedThisFrame()) TryReload();
+                if (automaticReloadOnEmpty && !equippedWeapon.HasAmmo && !equippedWeapon.IsReloading
+                    && equippedWeapon.ReserveAmmo > 0 && Time.time >= autoReloadReadyAt)
+                    TryReload();
+            }
+            else if (movement == null || !movement.isActiveAndEnabled || movement.DisableAllMove
+                || movement.IsRolling || (playerHealth != null && playerHealth.IsDead))
+            {
+                equippedWeapon.CancelReload();
+            }
             if (CanAimAndFire() && TryGetAimTarget(out _, out Vector3 target, out _))
             {
                 AlignWeapon(target);
@@ -145,8 +247,11 @@ namespace Survive.Combat
         public bool TryEquip(WeaponItem weapon)
         {
             ResolvePlayerReferences();
+            if (Inventory != null) return inventory.TryCollect(weapon);
             if (!isActiveAndEnabled || movement == null || !movement.isActiveAndEnabled
                 || !movement.IsPlayer || (playerHealth != null && playerHealth.IsDead)
+                || movement.DisableAllMove || movement.IsRolling || Time.timeScale <= 0f
+                || (requireLockedCursor && Cursor.lockState != CursorLockMode.Locked)
                 || EquippedWeapon != null || weapon == null || weapon.IsEquipped
                 || !weapon.isActiveAndEnabled)
             {
@@ -162,31 +267,210 @@ namespace Survive.Combat
             }
 
             equippedWeapon = weapon;
+            SubscribeWeapon();
             nextShotTime = Time.time;
+            autoReloadReadyAt = Time.time + 0.18f;
+            SyncReloadAnimation();
             ResolveCamera();
             UpdateDebugCrosshair();
+            WeaponChanged?.Invoke(weapon);
+            WeaponStateChanged?.Invoke(weapon);
             return true;
+        }
+
+        /// <summary>Reemplaza el arma y deja la anterior en el lugar del pickup, conservando su munición.</summary>
+        public bool TrySwapWeapon(WeaponItem weapon)
+        {
+            if (Inventory != null) return inventory.TryCollect(weapon);
+            if (EquippedWeapon == null) return TryEquip(weapon);
+            if (!CanOperateWeapon() || weapon == null || !weapon.isActiveAndEnabled || weapon.IsEquipped)
+                return false;
+
+            Vector3 worldPosition = weapon.transform.position;
+            Quaternion worldRotation = weapon.transform.rotation;
+            Transform socket = ResolveSocket();
+            if (!weapon.TryAttach(OwnerRoot, socket,
+                    weapon.EquippedLocalPosition + attachmentPositionOffset,
+                    weapon.EquippedLocalEulerAngles + attachmentEulerOffset)) return false;
+
+            WeaponItem previous = equippedWeapon;
+            previous.CancelReload();
+            UnsubscribeWeapon();
+            previous.PlaceInWorld(worldPosition, worldRotation);
+            equippedWeapon = weapon;
+            resolvedSocket = socket;
+            SubscribeWeapon();
+            // La interacción no debe disparar el arma nueva en el mismo cuadro.
+            nextShotTime = Time.time + 0.15f;
+            autoReloadReadyAt = Time.time + 0.18f;
+            SyncReloadAnimation();
+            WeaponChanged?.Invoke(weapon);
+            WeaponStateChanged?.Invoke(weapon);
+            return true;
+        }
+
+        /// <summary>Primitiva del inventario: cambia attachment sin pasar por la recogida pública.</summary>
+        internal bool TrySetInventorySelection(WeaponItem weapon, Transform storage, bool dropPrevious,
+            Vector3 dropPosition, Quaternion dropRotation)
+        {
+            ResolvePlayerReferences();
+            if (!CanChangeWeaponSelection) return false;
+            WeaponItem previous = EquippedWeapon;
+            if (previous == weapon) return true;
+            if (previous != null && (!previous.IsOwnedBy(OwnerRoot) || storage == null
+                || (storage != OwnerRoot && !storage.IsChildOf(OwnerRoot)))) return false;
+            if (weapon != null && (!weapon.enabled || (!weapon.IsOwnedBy(OwnerRoot)
+                && (weapon.IsEquipped || !weapon.isActiveAndEnabled)))) return false;
+
+            Transform socket = weapon != null ? ResolveSocket() : null;
+            Transform previousSocket = previous != null ? previous.transform.parent : null;
+            Vector3 previousPosition = previous != null ? previous.transform.localPosition : Vector3.zero;
+            Vector3 previousEuler = previous != null ? previous.transform.localEulerAngles : Vector3.zero;
+            previous?.CancelReload();
+            // El arma anterior sigue activa hasta confirmar el attachment nuevo;
+            // una referencia inválida no debe hacerla desaparecer.
+            if (previous != null && !dropPrevious
+                && !previous.TryMoveOwnedAttachment(OwnerRoot, storage, Vector3.zero, Vector3.zero)) return false;
+
+            bool wasActive = weapon != null && weapon.gameObject.activeSelf;
+            if (weapon != null)
+            {
+                if (!wasActive) weapon.gameObject.SetActive(true);
+                bool attached = weapon.IsOwnedBy(OwnerRoot)
+                    ? weapon.TryMoveOwnedAttachment(OwnerRoot, socket,
+                        weapon.EquippedLocalPosition + attachmentPositionOffset,
+                        weapon.EquippedLocalEulerAngles + attachmentEulerOffset)
+                    : weapon.TryAttach(OwnerRoot, socket,
+                        weapon.EquippedLocalPosition + attachmentPositionOffset,
+                        weapon.EquippedLocalEulerAngles + attachmentEulerOffset);
+                if (!attached)
+                {
+                    if (!wasActive) weapon.gameObject.SetActive(false);
+                    if (previous != null && !dropPrevious)
+                        previous.TryMoveOwnedAttachment(OwnerRoot, previousSocket, previousPosition, previousEuler);
+                    return false;
+                }
+            }
+
+            UnsubscribeWeapon();
+            if (previous != null)
+            {
+                if (dropPrevious) previous.PlaceInWorld(dropPosition, dropRotation);
+                else previous.gameObject.SetActive(false);
+            }
+            equippedWeapon = weapon;
+            resolvedSocket = socket;
+            SubscribeWeapon();
+            // Cambiar de slot no dispara en el cuadro de la selección.
+            nextShotTime = Time.time + 0.15f;
+            autoReloadReadyAt = Time.time + 0.18f;
+            SyncReloadAnimation();
+            ResolveCamera();
+            if (weapon != null) UpdateDebugCrosshair();
+            else RestoreDebugCrosshair();
+            WeaponChanged?.Invoke(weapon);
+            WeaponStateChanged?.Invoke(weapon);
+            return true;
+        }
+
+        public bool TryReload()
+        {
+            return CanOperateWeapon() && equippedWeapon.TryStartReload();
+        }
+
+        private void DropInFront()
+        {
+            Vector3 origin = playerCapsule != null ? playerCapsule.bounds.center : OwnerRoot.position + Vector3.up;
+            float distance = 1.2f;
+            if (TryGetNearestHit(new Ray(origin, OwnerRoot.forward), distance, out RaycastHit obstruction))
+                distance = Mathf.Max(0f, obstruction.distance - 0.4f);
+            DropEquippedWeapon(OwnerRoot.position + OwnerRoot.forward * distance, Quaternion.identity);
+        }
+
+        private void SubscribeWeapon()
+        {
+            if (equippedWeapon == null) return;
+            equippedWeapon.StateChanged -= ForwardWeaponState;
+            equippedWeapon.StateChanged += ForwardWeaponState;
+        }
+
+        private void UnsubscribeWeapon()
+        {
+            if (equippedWeapon != null) equippedWeapon.StateChanged -= ForwardWeaponState;
+        }
+
+        private void ForwardWeaponState(WeaponItem weapon)
+        {
+            SyncReloadAnimation();
+            WeaponStateChanged?.Invoke(weapon);
+        }
+
+        private void SyncReloadAnimation()
+        {
+            if (weaponAnimator == null) return;
+            if (cachedAnimatorController != weaponAnimator.runtimeAnimatorController)
+            {
+                cachedAnimatorController = weaponAnimator.runtimeAnimatorController;
+                reloadLayer = weaponAnimator.GetLayerIndex("Weapon Actions");
+                bool hasBool = false, hasSpeed = false;
+                foreach (AnimatorControllerParameter parameter in weaponAnimator.parameters)
+                {
+                    hasBool |= parameter.nameHash == ReloadingHash && parameter.type == AnimatorControllerParameterType.Bool;
+                    hasSpeed |= parameter.nameHash == ReloadSpeedHash && parameter.type == AnimatorControllerParameterType.Float;
+                }
+                hasReloadParameters = hasBool && hasSpeed;
+            }
+            if (!hasReloadParameters) return;
+            WeaponItem weapon = EquippedWeapon;
+            float clipDuration = reloadAnimationClip != null ? reloadAnimationClip.length : 2.2f;
+            weaponAnimator.SetFloat(ReloadSpeedHash, weapon != null ? clipDuration / weapon.ReloadDuration : 1f);
+            bool reloading = isActiveAndEnabled && weapon != null && weapon.IsReloading;
+            weaponAnimator.SetBool(ReloadingHash, reloading);
+            if (reloadLayer >= 0)
+                weaponAnimator.SetLayerWeight(reloadLayer,
+                    isActiveAndEnabled && weapon != null && (reloading || IsReloadAnimationActive) ? 1f : 0f);
+        }
+
+        /// <summary>Comparte el mismo objetivo balístico con el solver de las manos.</summary>
+        public bool TryGetAimPoint(out Vector3 target)
+        {
+            target = default;
+            if (EquippedWeapon == null) return false;
+            ResolveCamera();
+            return TryGetAimTarget(out _, out target, out _);
         }
 
         /// <summary>Permite devolver el arma al mapa desde otro sistema sin agregar una tecla de inventario.</summary>
         public bool DropEquippedWeapon(Vector3 position, Quaternion rotation)
         {
+            if (Inventory != null) return inventory.TryDropSelected(position, rotation);
+            return TryDropInventorySelection(position, rotation);
+        }
+
+        internal bool TryDropInventorySelection(Vector3 position, Quaternion rotation)
+        {
+            if (!CanChangeWeaponSelection) return false;
             WeaponItem weapon = EquippedWeapon;
             if (weapon == null)
             {
                 return false;
             }
 
+            weapon.CancelReload();
+            UnsubscribeWeapon();
             equippedWeapon = null;
             weapon.PlaceInWorld(position, rotation);
+            SyncReloadAnimation();
             RestoreDebugCrosshair();
+            WeaponChanged?.Invoke(null);
+            WeaponStateChanged?.Invoke(null);
             return true;
         }
 
         /// <summary>El disparo programático respeta las mismas condiciones y cadencia que el input.</summary>
         public bool TryFire()
         {
-            if (!CanAimAndFire() || Time.time < nextShotTime)
+            if (!CanAimAndFire() || Time.time < nextShotTime || !equippedWeapon.HasAmmo)
             {
                 return false;
             }
@@ -201,19 +485,24 @@ namespace Survive.Combat
             AlignWeapon(target);
             Vector3 muzzlePosition = equippedWeapon.Muzzle.position;
             float range = Mathf.Max(0.01f, equippedWeapon.Range);
+            if (!equippedWeapon.TryConsumeRound()) return false;
             nextShotTime = Time.time + 1f / Mathf.Max(0.01f, equippedWeapon.ShotsPerSecond);
+            autoReloadReadyAt = Time.time + 0.18f;
+            crosshairKick = Mathf.Min(10f, crosshairKick + 2f);
 
             // La cámara TPS puede mirar una pared que está detrás del cañón: no se invierte el disparo.
             Vector3 toTarget = target - muzzlePosition;
             if (Vector3.Dot(toTarget, cameraRay.direction) <= 0.001f)
             {
                 equippedWeapon.ShowShot(muzzlePosition, muzzlePosition, true);
+                ShotFired?.Invoke(equippedWeapon);
                 return true;
             }
 
             if (TryFindMuzzleOverlap(muzzlePosition, out Vector3 blockedPoint))
             {
                 equippedWeapon.ShowShot(muzzlePosition, blockedPoint, true);
+                ShotFired?.Invoke(equippedWeapon);
                 return true;
             }
 
@@ -227,37 +516,64 @@ namespace Survive.Combat
                     out RaycastHit nearObstruction))
             {
                 equippedWeapon.ShowShot(muzzlePosition, nearObstruction.point, true);
+                equippedWeapon.ShowImpact(nearObstruction);
+                ShotFired?.Invoke(equippedWeapon);
                 return true;
             }
 
-            float distance = Mathf.Min(range, toTarget.magnitude);
-            Vector3 direction = toTarget.normalized;
-            // La superficie objetivo puede quedar unas milésimas fuera del rayo por precisión numérica.
-            // Sólo se acepta ese margen si sigue siendo el MISMO collider visto por la cámara.
-            float queryDistance = Mathf.Min(range, toTarget.magnitude + 0.005f);
-            bool hasHit = TryGetNearestHit(new Ray(muzzlePosition, direction), queryDistance, out RaycastHit hit)
-                && (hit.distance <= distance || (cameraHit.collider != null && hit.collider == cameraHit.collider));
-            Vector3 endpoint = hasHit ? hit.point : muzzlePosition + direction * distance;
-            if (hasHit)
+            Vector3 aimDirection = toTarget.normalized;
+            int pelletCount = Mathf.Clamp(equippedWeapon.PelletsPerShot, 1, pelletHits.Length);
+            for (int pellet = 0; pellet < pelletCount; pellet++)
             {
-                ApplyDamage(hit);
-            }
+                Vector3 direction = aimDirection;
+                bool hasSpread = equippedWeapon.SpreadDegrees > 0f;
+                if (hasSpread)
+                {
+                    Vector2 spread = UnityEngine.Random.insideUnitCircle
+                        * Mathf.Tan(equippedWeapon.SpreadDegrees * Mathf.Deg2Rad);
+                    direction = Quaternion.LookRotation(aimDirection) * new Vector3(spread.x, spread.y, 1f).normalized;
+                }
+                float distance = hasSpread ? range : Mathf.Min(range, toTarget.magnitude);
+                // La superficie objetivo puede quedar unas milésimas fuera del rayo por precisión numérica.
+                // Sólo se acepta ese margen si sigue siendo el MISMO collider visto por la cámara.
+                float queryDistance = hasSpread ? range : Mathf.Min(range, toTarget.magnitude + 0.005f);
+                bool hasHit = TryGetNearestHit(new Ray(muzzlePosition, direction), queryDistance, out RaycastHit hit)
+                    && (hit.distance <= distance || (cameraHit.collider != null && hit.collider == cameraHit.collider));
+                Vector3 endpoint = hasHit ? hit.point : muzzlePosition + direction * distance;
+                pelletHits[pellet] = hasHit ? hit : default;
 
-            equippedWeapon.ShowShot(muzzlePosition, endpoint, hasHit);
+                equippedWeapon.ShowShot(muzzlePosition, endpoint, hasHit, pellet);
+                if (hasHit) equippedWeapon.ShowImpact(hit);
+            }
+            // Resolver toda la geometría antes del daño evita atravesar un enemigo que muere
+            // y desactiva sus colliders con el primer perdigón del mismo disparo.
+            for (int pellet = 0; pellet < pelletCount; pellet++)
+                if (pelletHits[pellet].collider != null) ApplyDamage(pelletHits[pellet]);
+            ShotFired?.Invoke(equippedWeapon);
             return true;
         }
 
         private bool CanAimAndFire()
         {
+            return CanOperateWeapon() && movement.IsAiming && !equippedWeapon.IsReloading && !IsReloadAnimationActive;
+        }
+
+        private bool CanOperateWeapon()
+        {
             return isActiveAndEnabled && EquippedWeapon != null && equippedWeapon.isActiveAndEnabled
+                && !(GetComponent<Survive.Turrets.PlayerTurretController>()?.BlocksWeaponInput ?? false)
                 && movement != null && movement.isActiveAndEnabled && movement.IsPlayer
-                && movement.IsAiming && !movement.DisableAllMove && !movement.IsRolling
+                && !movement.DisableAllMove && !movement.IsRolling
                 && (playerHealth == null || !playerHealth.IsDead) && Time.timeScale > 0f
                 && (!requireLockedCursor || Cursor.lockState == CursorLockMode.Locked);
         }
 
         private void ResolvePlayerReferences()
         {
+            if (inventory == null) inventory = GetComponent<PlayerWeaponInventory>();
+            if (weaponAnimator == null) weaponAnimator = GetComponent<Animator>();
+            if (weaponPose == null) weaponPose = GetComponent<PlayerWeaponPose>();
+            SyncReloadAnimation();
             if (movement == null)
             {
                 movement = GetComponent<UPPCharacterMovementComponent>();
@@ -360,7 +676,7 @@ namespace Survive.Combat
 
         private void AlignWeapon(Vector3 target)
         {
-            if (!alignWeaponWhileAiming || EquippedWeapon == null
+            if (!alignWeaponWhileAiming || (weaponPose != null && weaponPose.HandlesAlignment) || EquippedWeapon == null
                 || (aimCamera != null
                     && Vector3.Dot(target - equippedWeapon.transform.position, aimCamera.transform.forward) <= 0.001f))
             {
@@ -450,6 +766,7 @@ namespace Survive.Combat
             EnemyHealth enemyHealth = hit.collider.GetComponentInParent<EnemyHealth>();
             if (enemyHealth != null)
             {
+                if (!enemyHealth.IsDead) hitMarkerEndsAt = Time.unscaledTime + 0.12f;
                 enemyHealth.TakeDamage(equippedWeapon.Damage, hit.point);
             }
         }
@@ -483,7 +800,7 @@ namespace Survive.Combat
 
         private void OnGUI()
         {
-            if (!showCrosshair || !CanAimAndFire() || aimCamera == null || Event.current.type != EventType.Repaint)
+            if (!showCrosshair || !CanOperateWeapon() || !movement.IsAiming || aimCamera == null || Event.current.type != EventType.Repaint)
             {
                 return;
             }
@@ -491,11 +808,18 @@ namespace Survive.Combat
             float centerX = viewport.x + viewport.width * 0.5f;
             float centerY = Screen.height - viewport.y - viewport.height * 0.5f;
             Color previous = GUI.color;
-            GUI.color = crosshairColor;
-            GUI.DrawTexture(new Rect(centerX - crosshairSize, centerY - crosshairThickness * 0.5f,
-                crosshairSize * 2f, crosshairThickness), Texture2D.whiteTexture);
-            GUI.DrawTexture(new Rect(centerX - crosshairThickness * 0.5f, centerY - crosshairSize,
-                crosshairThickness, crosshairSize * 2f), Texture2D.whiteTexture);
+            GUI.color = Time.unscaledTime < hitMarkerEndsAt ? new Color(1f, 0.35f, 0.2f)
+                : equippedWeapon.IsReloading ? new Color(1f, 0.75f, 0.2f) : crosshairColor;
+            float gap = 3f + crosshairKick;
+            float arm = crosshairSize * 0.65f;
+            GUI.DrawTexture(new Rect(centerX - gap - arm, centerY - crosshairThickness * 0.5f,
+                arm, crosshairThickness), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(centerX + gap, centerY - crosshairThickness * 0.5f,
+                arm, crosshairThickness), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(centerX - crosshairThickness * 0.5f, centerY - gap - arm,
+                crosshairThickness, arm), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(centerX - crosshairThickness * 0.5f, centerY + gap,
+                crosshairThickness, arm), Texture2D.whiteTexture);
             GUI.color = previous;
         }
     }

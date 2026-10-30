@@ -6,7 +6,8 @@ namespace Survive.Items
     public enum ItemType
     {
         Generic = 0,
-        WeaponType = 1
+        WeaponType = 1,
+        Turret = 2
     }
 
     /// <summary>Base de un objeto recogible, con flotación y attachment al jugador.</summary>
@@ -42,6 +43,9 @@ namespace Survive.Items
 
         public ItemType Type => itemType;
         public bool IsEquipped { get; private set; }
+
+        /// <summary>Incluye los objetos guardados: el inventario conserva la propiedad al ocultarlos.</summary>
+        public bool IsOwnedBy(Transform ownerRoot) => IsEquipped && ownerRoot != null && attachedOwner == ownerRoot;
 
         protected virtual void Reset()
         {
@@ -195,6 +199,24 @@ namespace Survive.Items
             }
 
             // Conservar escala mundial permite usar sockets de modelos importados con otra escala.
+            transform.SetParent(socket, true);
+            transform.localPosition = localPosition;
+            transform.localRotation = Quaternion.Euler(localEulerAngles);
+            return true;
+        }
+
+        /// <summary>Mueve un objeto ya adquirido entre mano y almacenamiento del mismo dueño.</summary>
+        internal bool TryMoveOwnedAttachment(Transform ownerRoot, Transform socket,
+            Vector3 localPosition, Vector3 localEulerAngles)
+        {
+            if (!IsOwnedBy(ownerRoot) || socket == null || socket.IsChildOf(transform)
+                || (socket != ownerRoot && !socket.IsChildOf(ownerRoot)))
+                return false;
+
+            StopPhysics();
+            itemBody.detectCollisions = false;
+            foreach (Collider itemCollider in itemColliders)
+                if (itemCollider != null) itemCollider.enabled = false;
             transform.SetParent(socket, true);
             transform.localPosition = localPosition;
             transform.localRotation = Quaternion.Euler(localEulerAngles);

@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b337b754af534de8a3d424b6ce9c18e2, type: 3}
+  m_Name: WVFX_HuntingRifle
+  m_EditorClassIdentifier: Assembly-CSharp::Survive.Items.WeaponVfxProfile
+  muzzlePrefab: {fileID: 2384971276143756342, guid: 4f9937c6da31b4e429ab0ba3fe159b7c, type: 3}
+  muzzleScale: 0.7
+  muzzleLifetime: 0.28
+  shellPrefab: {fileID: 4810768553333944647, guid: c4045523b7467cb48942b2bc13ed830f, type: 3}
+  shellScale: 0.8
+  shellLifetime: 3
+  ejectionDelaySeconds: 0.28
+  ejectCasingsOnReload: 0
+  reloadEjectionProgress: 0.39
+  concreteImpactPrefab: {fileID: 8807337144116335543, guid: 3dfef0ffa1497a64581cbb76092d800d, type: 3}
+  metalImpactPrefab: {fileID: 816287794625599281, guid: 4f82355b7fbd96449948f8924a9dd845, type: 3}
+  woodImpactPrefab: {fileID: 772979911793829645, guid: 2da23ba175581594ba3474140eb762c3, type: 3}
+  dirtImpactPrefab: {fileID: 3192964711694368187, guid: 44d25ec7712319d45be6a30d5625157e, type: 3}
+  fleshImpactPrefab: {fileID: 1096189721582192523, guid: 7d2b72eaf225b8b4785e81bca31e1985, type: 3}
+  glassImpactPrefab: {fileID: 1074115978529129381, guid: bf6a08bf269258d45900fb88c46142a0, type: 3}
+  impactScale: 0.5
+  impactLifetime: 2.4

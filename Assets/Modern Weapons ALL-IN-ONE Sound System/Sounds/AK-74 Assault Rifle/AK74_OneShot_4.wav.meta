@@ -1,0 +1,30 @@
+fileFormatVersion: 2
+guid: 1a5df79f0fac7b9468a2d54f6b4d0b04
+AssetOrigin:
+  serializedVersion: 1
+  productId: 254503
+  packageName: Modern Weapons ALL-IN-ONE Sound System
+  packageVersion: 1.1
+  assetPath: Assets/Modern Weapons ALL-IN-ONE Sound System/Sounds/AK-74 Assault Rifle/AK74_OneShot_4.wav
+  uploadId: 620783
+AudioImporter:
+  externalObjects: {}
+  serializedVersion: 8
+  defaultSettings:
+    serializedVersion: 2
+    loadType: 1
+    sampleRateSetting: 0
+    sampleRateOverride: 44100
+    compressionFormat: 2
+    quality: 1
+    conversionMode: 0
+    preloadAudioData: 1
+  platformSettingOverrides: {}
+  forceToMono: 0
+  normalize: 1
+  loadInBackground: 0
+  ambisonic: 0
+  3D: 1
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

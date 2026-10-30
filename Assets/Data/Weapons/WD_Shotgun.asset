@@ -1,0 +1,63 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0db3882030c4becabe87f9bb966b007, type: 3}
+  m_Name: WD_Shotgun
+  m_EditorClassIdentifier: Assembly-CSharp::Survive.Items.WeaponDefinition
+  displayName: Escopeta
+  icon: {fileID: 21300000, guid: da59312814b03dc408430a1a656b0d69, type: 3}
+  damage: 12
+  range: 35
+  shotsPerSecond: 1.1
+  automatic: 1
+  magazineSize: 8
+  startingReserveAmmo: 40
+  reloadDuration: 2.8
+  pelletsPerShot: 8
+  spreadDegrees: 5
+  recoilDegrees: 3.2
+  recoilBackDistance: 0.055
+  recoilRecoverySpeed: 10
+  shotSound: {fileID: 8300000, guid: 50f488ca83b0dfe42819353867fc0938, type: 3}
+  shotVariations:
+  - {fileID: 8300000, guid: 50f488ca83b0dfe42819353867fc0938, type: 3}
+  - {fileID: 8300000, guid: c9f3b8a0efc36bc4b9df15d418f829df, type: 3}
+  - {fileID: 8300000, guid: bf7ffb644423d974ba6f0901005ec264, type: 3}
+  - {fileID: 8300000, guid: b25a88a3452af2242901f2dd350ab583, type: 3}
+  shotMechanismVariations:
+  - {fileID: 8300000, guid: 4690b609ad07e6b40a5013ea547e0178, type: 3}
+  - {fileID: 8300000, guid: 43851ff7f24d55d49a168a8f99c49c91, type: 3}
+  - {fileID: 8300000, guid: d0e67897a8255454aa155331f1af3755, type: 3}
+  - {fileID: 8300000, guid: f3b2a6999614f4f498598844b0c48c32, type: 3}
+  shotTailVariations:
+  - {fileID: 8300000, guid: 261eaf1023d8a4d41adfcf1932294b2d, type: 3}
+  - {fileID: 8300000, guid: 9bc03e3bdec2bc34bacc6720b4766c63, type: 3}
+  - {fileID: 8300000, guid: 57889049ae734d7479175bd3dfd56f8c, type: 3}
+  - {fileID: 8300000, guid: 43690645121efe84cb4354376be65180, type: 3}
+  reloadSound: {fileID: 0}
+  reloadAudioCues:
+  - normalizedTime: 0.05
+    clip: {fileID: 8300000, guid: 452be7da731b405ca996fe37bb4d8399, type: 3}
+    volume: 0.9
+  - normalizedTime: 0.35
+    clip: {fileID: 8300000, guid: cd7cfa8068cf4529864da78021370178, type: 3}
+    volume: 0.7
+  - normalizedTime: 0.59
+    clip: {fileID: 8300000, guid: 9e16d26d9107458aad5802a33a7daef0, type: 3}
+    volume: 1
+  - normalizedTime: 0.82
+    clip: {fileID: 8300000, guid: 6118ca330e1e42e5b160a90bad0c9095, type: 3}
+    volume: 1
+  reloadVolume: 0.54
+  shotVolume: 0.4
+  shotMechanismVolume: 0.1
+  shotTailVolume: 0.06
+  vfxProfile: {fileID: 11400000, guid: 4c2f446c0e84d554198a5ac91a855841, type: 2}

@@ -11,6 +11,7 @@ public class GameOverUI : MonoBehaviour
     [SerializeField] private TMP_Text enemiesText;
     [SerializeField] private TMP_Text waveText;
     [SerializeField] private TMP_Text timeText;
+    [SerializeField] private TMP_Text accuracyText;
     [SerializeField] private TMP_Text scoreText;
 
     [Header("Conexión con Leaderboard")]
@@ -19,8 +20,13 @@ public class GameOverUI : MonoBehaviour
 
     private bool gameOverTriggered = false;
 
-    private void Update()
+    protected virtual bool MonitorPlayerDeath => true;
+    protected virtual bool PauseWhenShown => true;
+    protected virtual GameObject DisplayPanel => GameOverPanel;
+
+    protected virtual void Update()
     {
+        if (!MonitorPlayerDeath) return;
         if (GameStatsManager.Instance != null)
         {
             if (GameStatsManager.Instance.survivalTime < 0.2f)
@@ -59,14 +65,19 @@ public class GameOverUI : MonoBehaviour
             if (enemiesText != null) enemiesText.text = "Enemigos eliminados: " + kills;
             if (waveText != null) waveText.text = "Oleada alcanzada: " + wave;
             if (timeText != null) timeText.text = $"Tiempo sobrevivido: {minutes:00}:{seconds:00}";
+            float accuracy = GameStatsManager.Instance.shotsFired > 0
+                ? (float)GameStatsManager.Instance.shotsHit / GameStatsManager.Instance.shotsFired * 100f
+                : 0f;
+            if (accuracyText != null) accuracyText.text = $"Precisión: {accuracy:F1}%";
             if (scoreText != null) scoreText.text = "Puntaje Total: " + finalScore.ToString("N0");
         }
 
-        if (GameOverPanel != null)
+        GameObject panel = DisplayPanel;
+        if (panel != null)
         {
-            GameOverPanel.SetActive(true);
+            panel.SetActive(true);
 
-            RectTransform panelRect = GameOverPanel.GetComponent<RectTransform>();
+            RectTransform panelRect = panel.GetComponent<RectTransform>();
             if (panelRect != null)
             {
                 LayoutRebuilder.ForceRebuildLayoutImmediate(panelRect);
@@ -83,6 +94,6 @@ public class GameOverUI : MonoBehaviour
 
         Canvas.ForceUpdateCanvases();
 
-        Time.timeScale = 0f;
+        if (PauseWhenShown) Time.timeScale = 0f;
     }
 }

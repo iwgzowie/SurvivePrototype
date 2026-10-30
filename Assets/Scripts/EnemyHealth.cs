@@ -36,6 +36,7 @@ public class EnemyHealth : MonoBehaviour
 
     private bool isDead = false;
     public bool IsDead => isDead;
+    public bool HasHitParticleEffect => hitParticlePrefab != null;
 
     private void Awake()
     {

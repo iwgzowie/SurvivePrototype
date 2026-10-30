@@ -18,12 +18,12 @@ public class ScoreEntry
 
 public class LeaderboardManager : MonoBehaviour
 {
-    [SerializeField] private int maxEntries = 5;
+    [SerializeField] protected int maxEntries = 5;
 
 
     [SerializeField] private List<ScoreEntry> entries = new List<ScoreEntry>();
 
-    private void Awake()
+    protected virtual void Awake()
     {
         LoadScores();
     }

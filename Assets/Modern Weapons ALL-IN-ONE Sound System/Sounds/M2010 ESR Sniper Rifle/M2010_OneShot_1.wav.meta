@@ -1,0 +1,31 @@
+fileFormatVersion: 2
+guid: d32762afb6957734c868f5665186e59c
+AssetOrigin:
+  serializedVersion: 1
+  productId: 254503
+  packageName: Modern Weapons ALL-IN-ONE Sound System
+  packageVersion: 1.1
+  assetPath: Assets/Modern Weapons ALL-IN-ONE Sound System/Sounds/M2010 ESR Sniper
+    Rifle/M2010_OneShot_1.wav
+  uploadId: 620783
+AudioImporter:
+  externalObjects: {}
+  serializedVersion: 8
+  defaultSettings:
+    serializedVersion: 2
+    loadType: 1
+    sampleRateSetting: 0
+    sampleRateOverride: 44100
+    compressionFormat: 2
+    quality: 1
+    conversionMode: 0
+    preloadAudioData: 1
+  platformSettingOverrides: {}
+  forceToMono: 0
+  normalize: 1
+  loadInBackground: 0
+  ambisonic: 0
+  3D: 1
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

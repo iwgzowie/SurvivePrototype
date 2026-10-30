@@ -15,6 +15,7 @@ namespace Survive.Combat
     {
         [Header("Referencias del jugador")]
         [SerializeField] private PlayerWeaponController weaponController;
+        [SerializeField] private PlayerWeaponInventory weaponInventory;
         [SerializeField] private PlayerHealth playerHealth;
         [SerializeField, Tooltip("Sin referencia, usa la cámara principal creada por UPP.")]
         private Camera sourceCamera;
@@ -36,13 +37,16 @@ namespace Survive.Combat
         [SerializeField] private CanvasGroup promptCanvasGroup;
         [SerializeField] private TMP_Text promptText;
         [SerializeField] private string promptMessage = "[E] Recoger arma";
+        [SerializeField] private string swapPromptMessage = "[E] Cambiar arma";
 
         private UPPCharacterMovementComponent movement;
         private readonly RaycastHit[] rayHits = new RaycastHit[64];
         private readonly Collider[] originOverlaps = new Collider[32];
 
-        public WeaponItem CurrentTarget { get; private set; }
-        public bool HasTarget => CurrentTarget != null;
+        private MonoBehaviour interactableTarget;
+        public WeaponItem CurrentTarget => interactableTarget as WeaponItem;
+        public MonoBehaviour CurrentInteractable => interactableTarget;
+        public bool HasTarget => interactableTarget != null;
         public float InteractionDistance => interactionDistance;
 
         private Transform OwnerRoot => movement != null ? movement.transform : transform;
@@ -99,6 +103,8 @@ namespace Survive.Combat
         {
             if (weaponController == null)
                 weaponController = GetComponent<PlayerWeaponController>();
+            if (weaponInventory == null)
+                weaponInventory = GetComponent<PlayerWeaponInventory>();
             if (playerHealth == null)
                 playerHealth = GetComponent<PlayerHealth>();
             if (movement == null)
@@ -108,8 +114,9 @@ namespace Survive.Combat
         private bool CanInteract()
         {
             return isActiveAndEnabled && Time.timeScale > 0f
+                && !(GetComponent<Survive.Turrets.PlayerTurretController>()?.BlocksWeaponInput ?? false)
                 && weaponController != null && weaponController.isActiveAndEnabled
-                && weaponController.EquippedWeapon == null
+                && (weaponInventory == null || weaponInventory.isActiveAndEnabled)
                 && movement != null && movement.isActiveAndEnabled && movement.IsPlayer
                 && !movement.DisableAllMove && !movement.IsRolling
                 && (playerHealth == null || !playerHealth.IsDead)
@@ -141,7 +148,7 @@ namespace Survive.Combat
             int count = Cast(ray, cameraDistance, QueryTriggerInteraction.Collide, out RaycastHit[] hits);
             float nearestWeapon = float.PositiveInfinity;
             float nearestObstacle = float.PositiveInfinity;
-            WeaponItem candidate = null;
+            MonoBehaviour candidate = null;
             for (int i = 0; i < count; i++)
             {
                 Collider collider = hits[i].collider;
@@ -149,13 +156,18 @@ namespace Survive.Combat
                     continue;
 
                 WeaponItem weapon = collider.GetComponentInParent<WeaponItem>();
-                if (weapon != null && weapon.isActiveAndEnabled && !weapon.IsEquipped
-                    && weapon.Type == ItemType.WeaponType)
+                MonoBehaviour target = weapon;
+                if (target == null) target = collider.GetComponentInParent<IWorldInteractable>() as MonoBehaviour;
+                bool available = weapon != null
+                    ? weapon.isActiveAndEnabled && !weapon.IsEquipped && weapon.Type == ItemType.WeaponType
+                    : target != null && target.isActiveAndEnabled
+                        && ((IWorldInteractable)target).CanInteract(gameObject);
+                if (available)
                 {
                     if (hits[i].distance < nearestWeapon)
                     {
                         nearestWeapon = hits[i].distance;
-                        candidate = weapon;
+                        candidate = target;
                     }
                 }
                 else if (!collider.isTrigger)
@@ -174,6 +186,8 @@ namespace Survive.Combat
 
             // El trigger puede sobresalir de una pared y la cámara puede mirar alrededor de una esquina.
             Vector3 targetPosition = candidate.transform.position;
+            if (candidate is IWorldInteractable && candidate.TryGetComponent(out Collider targetBody))
+                targetPosition = targetBody.bounds.center;
             if (!HasClearPath(ray.origin, targetPosition, candidate)
                 || !HasClearPath(playerOrigin, targetPosition, candidate))
             {
@@ -188,10 +202,13 @@ namespace Survive.Combat
         public bool TryInteract()
         {
             RefreshTarget();
-            if (CurrentTarget == null)
+            if (interactableTarget == null)
                 return false;
 
-            bool equipped = weaponController.TryEquip(CurrentTarget);
+            bool equipped = interactableTarget is IWorldInteractable generic
+                ? generic.Interact(gameObject)
+                : weaponInventory != null ? weaponInventory.TryCollect(CurrentTarget)
+                    : weaponController.TrySwapWeapon(CurrentTarget);
             RefreshTarget();
             return equipped;
         }
@@ -214,7 +231,7 @@ namespace Survive.Combat
             return count;
         }
 
-        private bool HasClearPath(Vector3 origin, Vector3 destination, WeaponItem target)
+        private bool HasClearPath(Vector3 origin, Vector3 destination, MonoBehaviour target)
         {
             // Un raycast no detecta la superficie si su origen ya está dentro del collider.
             int overlapCount = Physics.OverlapSphereNonAlloc(origin, 0.01f, originOverlaps,
@@ -248,9 +265,9 @@ namespace Survive.Combat
             return true;
         }
 
-        private void SetTarget(WeaponItem target)
+        private void SetTarget(MonoBehaviour target)
         {
-            CurrentTarget = target;
+            interactableTarget = target;
             bool visible = target != null;
             if (promptCanvasGroup != null)
             {
@@ -261,8 +278,16 @@ namespace Survive.Combat
             if (promptText != null)
             {
                 promptText.enabled = visible;
-                if (visible && promptText.text != promptMessage)
-                    promptText.text = promptMessage;
+                if (visible)
+                {
+                    string action = weaponInventory != null
+                        ? weaponInventory.HasFreeSlot ? "[E] Guardar arma"
+                            : $"[E] Reemplazar slot {weaponInventory.SelectedIndex + 1}"
+                        : weaponController != null && weaponController.EquippedWeapon != null
+                            ? swapPromptMessage : promptMessage;
+                    promptText.text = target is IWorldInteractable generic ? generic.InteractionPrompt
+                        : action + " · " + ((WeaponItem)target).DisplayName;
+                }
             }
         }
     }

@@ -1,0 +1,63 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0db3882030c4becabe87f9bb966b007, type: 3}
+  m_Name: WD_SMG
+  m_EditorClassIdentifier: Assembly-CSharp::Survive.Items.WeaponDefinition
+  displayName: Subfusil
+  icon: {fileID: 21300000, guid: 6370f5043022b6145af1fef9465c9af7, type: 3}
+  damage: 16
+  range: 55
+  shotsPerSecond: 12
+  automatic: 1
+  magazineSize: 30
+  startingReserveAmmo: 150
+  reloadDuration: 1.8
+  pelletsPerShot: 1
+  spreadDegrees: 1.6
+  recoilDegrees: 0.55
+  recoilBackDistance: 0.012
+  recoilRecoverySpeed: 18
+  shotSound: {fileID: 8300000, guid: 1abd828c125bd574d837c474b9786ce8, type: 3}
+  shotVariations:
+  - {fileID: 8300000, guid: 1abd828c125bd574d837c474b9786ce8, type: 3}
+  - {fileID: 8300000, guid: c74ec580bdbc1154d981996a49735b06, type: 3}
+  - {fileID: 8300000, guid: d082d53d90b1f2942b5cbabb1892ead2, type: 3}
+  - {fileID: 8300000, guid: 9de88a3a1518ce34aaf14fcbcf939402, type: 3}
+  shotMechanismVariations:
+  - {fileID: 8300000, guid: 0378d514880302d43968cd8f03ca7ebd, type: 3}
+  - {fileID: 8300000, guid: e55e1209e203a044a95e3bcfcd568087, type: 3}
+  - {fileID: 8300000, guid: 4a8f6b65bd2987a4b8aed1d654eec795, type: 3}
+  - {fileID: 8300000, guid: 47ea94647e143a5439d2f93807cb8fb9, type: 3}
+  shotTailVariations:
+  - {fileID: 8300000, guid: db1a379cb3e331c4e9c72a283560ad52, type: 3}
+  - {fileID: 8300000, guid: af00ebaded9998e438699df379be7f26, type: 3}
+  - {fileID: 8300000, guid: 027f0f17ee0edbc49b746866d81291c5, type: 3}
+  - {fileID: 8300000, guid: 9175702f38a975745b02bd70f5e1a75a, type: 3}
+  reloadSound: {fileID: 0}
+  reloadAudioCues:
+  - normalizedTime: 0.16
+    clip: {fileID: 8300000, guid: cd7cfa8068cf4529864da78021370178, type: 3}
+    volume: 0.7
+  - normalizedTime: 0.65
+    clip: {fileID: 8300000, guid: 9e16d26d9107458aad5802a33a7daef0, type: 3}
+    volume: 1
+  - normalizedTime: 0.78
+    clip: {fileID: 8300000, guid: 452be7da731b405ca996fe37bb4d8399, type: 3}
+    volume: 0.9
+  - normalizedTime: 0.92
+    clip: {fileID: 8300000, guid: 6118ca330e1e42e5b160a90bad0c9095, type: 3}
+    volume: 1
+  reloadVolume: 0.48
+  shotVolume: 0.24
+  shotMechanismVolume: 0.065
+  shotTailVolume: 0.025
+  vfxProfile: {fileID: 11400000, guid: d1819e3fbeed3a34899a7367fd8e03d5, type: 2}

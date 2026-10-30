@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.Serialization;
 
 public enum WaveRunState
 {
@@ -24,6 +25,7 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField, InspectorName("Prefab patrullero")] private GameObject patrolPrefab;
 
     [Header("Oleadas e Infinito")]
+    [FormerlySerializedAs("waves")]
     [SerializeField] private List<EnemyWave> baseWaveTemplates = new List<EnemyWave>();
     [SerializeField] private BossSpawner bossSpawner;
     [SerializeField] private float restDurationAfterBoss = 120f;

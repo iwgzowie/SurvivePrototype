@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8e333f7638e014044a1f440461014006, type: 3}
+  m_Name: VC_Armero
+  m_EditorClassIdentifier: Assembly-CSharp::Survive.Economy.VendorCatalog
+  offers:
+  - weaponPrefab: {fileID: 5103862698066891918, guid: d051b15550aea9145aa7d570330820f4, type: 3}
+    turret: {fileID: 0}
+    price: 50
+  - weaponPrefab: {fileID: 2894089573441408505, guid: 5cd93793539b1f141b1cd9598bf79700, type: 3}
+    turret: {fileID: 0}
+    price: 90
+  - weaponPrefab: {fileID: 9169914220147214049, guid: 864ec1b7eaefcf64782844e25350182c, type: 3}
+    turret: {fileID: 0}
+    price: 120
+  - weaponPrefab: {fileID: 2930655690489185222, guid: e9ffcbd27a78ef946bd202fe1651b096, type: 3}
+    turret: {fileID: 0}
+    price: 160
+  - weaponPrefab: {fileID: 6155970095165669841, guid: 4f390c2e0fa21e14b843a52e24fd531a, type: 3}
+    turret: {fileID: 0}
+    price: 140
+  - weaponPrefab: {fileID: 7829916266761274193, guid: dbf6e92dd68b2ec4a970abc1c8577ade, type: 3}
+    turret: {fileID: 0}
+    price: 180
+  - weaponPrefab: {fileID: 5039536611798609951, guid: 7c3bf55b6c977904bad4d1d59cf68e0c, type: 3}
+    turret: {fileID: 0}
+    price: 240
+  - weaponPrefab: {fileID: 4111098649843639118, guid: 7e7ffe5b1c21efa45b1f75a91601c553, type: 3}
+    turret: {fileID: 0}
+    price: 220
+  - weaponPrefab: {fileID: 0}
+    turret: {fileID: 11400000, guid: 577d8e8177c5e4f4899becd1bdf9fa1e, type: 2}
+    price: 150

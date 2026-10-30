@@ -1,0 +1,63 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0db3882030c4becabe87f9bb966b007, type: 3}
+  m_Name: WD_SniperRifle
+  m_EditorClassIdentifier: Assembly-CSharp::Survive.Items.WeaponDefinition
+  displayName: "Rifle de precisi\xF3n"
+  icon: {fileID: 21300000, guid: b7cfe541d8aea2d4e83e66311aa513dc, type: 3}
+  damage: 110
+  range: 240
+  shotsPerSecond: 0.8
+  automatic: 1
+  magazineSize: 5
+  startingReserveAmmo: 20
+  reloadDuration: 3
+  pelletsPerShot: 1
+  spreadDegrees: 0.05
+  recoilDegrees: 3
+  recoilBackDistance: 0.05
+  recoilRecoverySpeed: 10
+  shotSound: {fileID: 8300000, guid: 0e5fed02dfa73ae42ad0a64ba62d83ee, type: 3}
+  shotVariations:
+  - {fileID: 8300000, guid: 0e5fed02dfa73ae42ad0a64ba62d83ee, type: 3}
+  - {fileID: 8300000, guid: cc647b865e9bf2d418c38f4eadd3c63e, type: 3}
+  - {fileID: 8300000, guid: 00dace8193f2e394e8741853b126474a, type: 3}
+  - {fileID: 8300000, guid: 95063cd12cb202848a4af3a5e3b7b037, type: 3}
+  shotMechanismVariations:
+  - {fileID: 8300000, guid: 73ba55da527313d47b0f6fef31fbf1cf, type: 3}
+  - {fileID: 8300000, guid: af88799a9e442d246a26ba8c120e17ee, type: 3}
+  - {fileID: 8300000, guid: 89149f26b6886934ab9267dfff383da0, type: 3}
+  - {fileID: 8300000, guid: c7f7c7720b304134980f6f1d54bdb2d3, type: 3}
+  shotTailVariations:
+  - {fileID: 8300000, guid: 15b3b6d687f521d4e8678dbad7c7eb8f, type: 3}
+  - {fileID: 8300000, guid: 0e2385015b40db94493e6422ed051d38, type: 3}
+  - {fileID: 8300000, guid: a59d9521a299647498512bab1f4abfc5, type: 3}
+  - {fileID: 8300000, guid: ae1d7c1684108ca42bdc86b907ad9dee, type: 3}
+  reloadSound: {fileID: 0}
+  reloadAudioCues:
+  - normalizedTime: 0.12
+    clip: {fileID: 8300000, guid: 452be7da731b405ca996fe37bb4d8399, type: 3}
+    volume: 0.9
+  - normalizedTime: 0.17
+    clip: {fileID: 8300000, guid: cd7cfa8068cf4529864da78021370178, type: 3}
+    volume: 0.7
+  - normalizedTime: 0.65
+    clip: {fileID: 8300000, guid: 9e16d26d9107458aad5802a33a7daef0, type: 3}
+    volume: 1
+  - normalizedTime: 0.83
+    clip: {fileID: 8300000, guid: 6118ca330e1e42e5b160a90bad0c9095, type: 3}
+    volume: 1
+  reloadVolume: 0.54
+  shotVolume: 0.42
+  shotMechanismVolume: 0.1
+  shotTailVolume: 0.05
+  vfxProfile: {fileID: 11400000, guid: d845e2539f20b1043954a1444d0fb062, type: 2}

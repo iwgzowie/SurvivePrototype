@@ -18,7 +18,7 @@ public class GameStatsManager : MonoBehaviour
 
     private bool isGameActive = false;
 
-    private void Awake()
+    protected virtual void Awake()
     {
         if (Instance == null)
         {
@@ -45,7 +45,7 @@ public class GameStatsManager : MonoBehaviour
         isGameActive = true;
     }
 
-    private void Update()
+    protected virtual void Update()
     {
         if (isGameActive)
         {
@@ -75,6 +75,9 @@ public class GameStatsManager : MonoBehaviour
         totalScore = combatScore;
     }
 
+    protected virtual int KillScore => combatScore;
+    protected virtual int AccuracyBonus => 0;
+
     // Calcula puntaje total y bonificaciones al llegar al Game Over
     public void FinalizeGameStats()
     {
@@ -88,6 +91,6 @@ public class GameStatsManager : MonoBehaviour
         int timeAndWaveScore = (waveReached * 250) + Mathf.RoundToInt(survivalTime * 5);
 
 
-        totalScore = combatScore + timeAndWaveScore + criticalBonus;
+        totalScore = KillScore + timeAndWaveScore + criticalBonus + AccuracyBonus;
     }
 }
