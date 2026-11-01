@@ -6,7 +6,7 @@ namespace Survive.Economy
     [DisallowMultipleComponent]
     public sealed class PlayerWallet : MonoBehaviour
     {
-        [SerializeField, Min(0)] private int startingCoins = 250;
+        [SerializeField, Min(0)] private int startingCoins;
         public int Coins { get; private set; }
         public event Action Changed;
 

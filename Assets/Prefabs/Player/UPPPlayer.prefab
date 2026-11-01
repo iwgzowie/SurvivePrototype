@@ -9200,7 +9200,7 @@ MonoBehaviour:
   SprintingAcceleration: 2
   SprintingDeceleration: 0.6
   RotationSpeed: 5
-  JumpForce: 3
+  JumpForce: 1.8542421
   StoppingSpeed: 2
   AirInfluenceControll: 0.5
   MaxWalkableAngle: 45
@@ -9675,6 +9675,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Survive.Combat.PlayerWeaponInventory
   weaponController: {fileID: 6448202024984462170}
   inventoryStorage: {fileID: 4378610513015004148}
+  startingWeaponPrefab: {fileID: 5103862698066891918, guid: d051b15550aea9145aa7d570330820f4, type: 3}
   slotActions:
   - m_Name: WeaponSlot1
     m_Type: 1
@@ -9897,7 +9898,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3593a728a5ebd484ab05400571a8752f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Survive.Economy.PlayerWallet
-  startingCoins: 250
+  startingCoins: 0
 --- !u!114 &6053207347730561821
 MonoBehaviour:
   m_ObjectHideFlags: 0

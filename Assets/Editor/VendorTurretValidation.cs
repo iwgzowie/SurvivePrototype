@@ -127,6 +127,8 @@ namespace Survive.Editor
             player.GetComponent<UPPCharacterMovementComponent>().UseDefaultControllerInput = false;
             wallet = player.GetComponent<PlayerWallet>(); shop = player.GetComponent<PlayerVendorController>();
             builder = player.GetComponent<PlayerTurretController>(); inventory = player.GetComponent<PlayerWeaponInventory>();
+            // Este escenario de transacciones entrega fondos explícitos y comienza sin equipo.
+            VendorTurretSetup.Set(inventory, "startingWeaponPrefab", null);
             // El editor batch no conserva captura de mouse. Sólo cambia instancias de esta escena aislada.
             VendorTurretSetup.Set(shop, "requireLockedCursor", false);
             VendorTurretSetup.Set(builder, "requireLockedCursor", false);
@@ -136,7 +138,8 @@ namespace Survive.Editor
             Cursor.lockState = CursorLockMode.Locked; Cursor.visible = false;
             Check(wallet != null && shop != null && builder != null && inventory != null, "Componentes integrados en el prefab real");
             Check(vendor.Catalog.Count == 9 && Enumerable.Range(0, 9).All(i => vendor.Catalog.GetOffer(i).IsValid), "Catálogo: ocho armas válidas y una torreta");
-            Check(wallet.Coins == 250, "Saldo inicial por partida: 250");
+            Check(wallet.Coins == 0, "Saldo inicial por partida: cero");
+            wallet.AddCoins(250);
             Check(builder.Count == 0, "Reserva inicial de torretas vacía");
         }
 
@@ -332,6 +335,8 @@ namespace Survive.Editor
                 "Level 1: oleadas originales cargan y arrancan tras renombrado de campo");
             if (shop == null || vendor == null) throw new InvalidOperationException("Falta integración en Level 1");
             player = shop.gameObject; wallet = player.GetComponent<PlayerWallet>();
+            Check(wallet.Coins == 0, "Level 1: saldo inicial cero");
+            wallet.AddCoins(250); // Fondos del escenario de compra, no del jugador de producción.
             builder = player.GetComponent<PlayerTurretController>();
             VendorTurretSetup.Set(shop, "requireLockedCursor", false);
             VendorTurretSetup.Set(builder, "requireLockedCursor", false);

@@ -16,6 +16,8 @@ namespace Survive.Combat
 
         [SerializeField] private PlayerWeaponController weaponController;
         [SerializeField] private Transform inventoryStorage;
+        [SerializeField, Tooltip("Arma entregada una sola vez al iniciar esta instancia del jugador, en el primer espacio libre.")]
+        private WeaponItem startingWeaponPrefab;
         [SerializeField] private InputAction[] slotActions = CreateSlotActions();
         [SerializeField] private InputAction scrollAction = new InputAction("WeaponSlotScroll", InputActionType.Value, "<Mouse>/scroll/y");
         [SerializeField] private InputAction previousSlotAction = new InputAction("PreviousWeaponSlot", InputActionType.Button, "<Gamepad>/dpad/left");
@@ -24,6 +26,7 @@ namespace Survive.Combat
         private readonly WeaponItem[] slots = new WeaponItem[Capacity];
         private int selectedIndex;
         private bool changingSelection;
+        private WeaponItem startingWeaponToEquip;
 
         public event Action Changed;
         public int SlotCount => Capacity;
@@ -59,6 +62,21 @@ namespace Survive.Combat
             // Permite agregar el componente a un jugador que ya tenía un arma.
             WeaponItem current = weaponController != null ? weaponController.EquippedWeapon : null;
             if (current != null && current.IsOwnedBy(weaponController.WeaponOwnerRoot)) slots[0] = current;
+        }
+
+        private void Start()
+        {
+            ResolveController();
+            if (startingWeaponPrefab == null || weaponController == null || !HasFreeSlot) return;
+            // No repetir la entrega si otro inicializador ya dejó esa arma en el inventario.
+            for (int index = 0; index < Capacity; index++)
+            {
+                WeaponItem current = GetWeapon(index);
+                if (current != null && current.Definition == startingWeaponPrefab.Definition) return;
+            }
+            WeaponItem weapon = Instantiate(startingWeaponPrefab, transform.position, Quaternion.identity);
+            if (TryStoreInFreeSlot(weapon)) startingWeaponToEquip = weapon;
+            else { weapon.gameObject.SetActive(false); Destroy(weapon.gameObject); }
         }
 
         private void OnEnable()
@@ -114,6 +132,13 @@ namespace Survive.Combat
             // disparo reciben la nueva selección más adelante en LateUpdate.
             if (PruneInvalidSlots()) Changed?.Invoke();
             if (!CanManageInventory) return;
+            if (startingWeaponToEquip != null)
+            {
+                // Esperar al cursor/control del juego permite iniciar también durante una pausa.
+                int index = Array.IndexOf(slots, startingWeaponToEquip);
+                if (weaponController.EquippedWeapon == null && index >= 0) TrySelect(index);
+                startingWeaponToEquip = null;
+            }
             for (int index = 0; index < Capacity; index++)
                 if (slotActions[index].WasPressedThisFrame()) { TrySelect(index); return; }
             if (previousSlotAction.WasPressedThisFrame()) { TryCycle(-1); return; }
@@ -143,6 +168,11 @@ namespace Survive.Combat
                 || !weaponController.isActiveAndEnabled || Time.timeScale <= 0f
                 || health != null && health.IsDead || weapon == null || !weapon.isActiveAndEnabled
                 || weapon.IsEquipped) return false;
+            return TryStoreInFreeSlot(weapon);
+        }
+
+        private bool TryStoreInFreeSlot(WeaponItem weapon)
+        {
             PruneInvalidSlots();
             int destination = -1;
             for (int index = 0; index < Capacity; index++)

@@ -14,6 +14,8 @@ namespace Survive.Turrets
         [SerializeField] private TurretDefinition definition;
         [SerializeField, Min(1)] private int capacity = 10;
         [SerializeField, Min(.5f)] private float placementDistance = 5f;
+        [SerializeField, Min(1f), Tooltip("Velocidad de rotación manual con Q/E, en grados por segundo.")]
+        private float rotationDegreesPerSecond = 90f;
         [SerializeField] private bool requireLockedCursor = true;
         [SerializeField] private Material validPreviewMaterial, invalidPreviewMaterial;
         private PlayerHealth health;
@@ -22,7 +24,7 @@ namespace Survive.Turrets
         private LineRenderer rangeRing;
         private float inputBlockedUntil;
         private Vector3 placementPosition;
-        private Quaternion placementRotation;
+        private Quaternion placementRotation = Quaternion.identity;
         public int Count { get; private set; }
         public int Capacity => Mathf.Max(1, capacity);
         public TurretDefinition Definition => definition;
@@ -30,6 +32,7 @@ namespace Survive.Turrets
         public bool BlocksWeaponInput => IsPlacing || Time.unscaledTime < inputBlockedUntil;
         public string PlacementMessage { get; private set; }
         public bool HasValidPlacement { get; private set; }
+        public float PlacementYaw => placementRotation.eulerAngles.y;
         public event Action Changed;
 
         private void Awake()
@@ -59,6 +62,7 @@ namespace Survive.Turrets
         {
             if (!CanBuild || Count <= 0 || definition == null || definition.DeployedPrefab == null) return false;
             if (IsPlacing) return true;
+            placementRotation = Quaternion.identity;
             preview = Instantiate(definition.DeployedPrefab);
             preview.name = "Turret_PlacementPreview";
             preview.enabled = false;
@@ -88,8 +92,20 @@ namespace Survive.Turrets
             if (!CanBuild || keys != null && keys.escapeKey.wasPressedThisFrame
                 || Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame)
             { CancelPlacement(); return; }
+            if (keys != null)
+            {
+                int direction = (keys.eKey.isPressed ? 1 : 0) - (keys.qKey.isPressed ? 1 : 0);
+                RotatePlacement(direction * rotationDegreesPerSecond * Time.deltaTime);
+            }
             RefreshPreview();
             if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame) TryPlace();
+        }
+
+        public bool RotatePlacement(float degrees)
+        {
+            if (!IsPlacing || !CanBuild || float.IsNaN(degrees) || float.IsInfinity(degrees)) return false;
+            placementRotation = Quaternion.Euler(0, PlacementYaw + degrees, 0);
+            return true;
         }
 
         private void RefreshPreview()
@@ -111,9 +127,10 @@ namespace Survive.Turrets
             preview.gameObject.SetActive(nearest.collider != null);
             if (nearest.collider == null) return;
             placementPosition = nearest.point;
-            placementRotation = Quaternion.Euler(0, transform.eulerAngles.y, 0);
             HasValidPlacement = ValidatePlacement(nearest, out string reason);
-            PlacementMessage = HasValidPlacement ? "[Clic] Colocar · [T / Esc / clic derecho] Cancelar" : reason;
+            const string rotationHelp = " · [Q] Girar izquierda · [E] Girar derecha";
+            PlacementMessage = HasValidPlacement ? "[Clic] Colocar" + rotationHelp + " · [T / Esc / clic derecho] Cancelar"
+                : reason + rotationHelp;
             preview.transform.SetPositionAndRotation(placementPosition, placementRotation);
             Material material = HasValidPlacement ? validPreviewMaterial : invalidPreviewMaterial;
             foreach (Renderer renderer in preview.GetComponentsInChildren<Renderer>())
@@ -153,21 +170,21 @@ namespace Survive.Turrets
                 if (!hit.transform.IsChildOf(transform)) { reason = "Hay un obstáculo en el camino"; return false; }
             float radius = definition.FootprintRadius;
             foreach (Collider obstacle in Physics.OverlapBox(ground.point + Vector3.up * .14f,
-                         new Vector3(radius, .12f, radius), Quaternion.identity, ~0, QueryTriggerInteraction.Ignore))
+                         new Vector3(radius, .12f, radius), placementRotation, ~0, QueryTriggerInteraction.Ignore))
                 if (obstacle != ground.collider)
                 { reason = "Hay un objeto debajo de la base"; return false; }
             // Cuatro apoyos evitan colocar la base flotando al borde de una plataforma.
             for (int index = 0; index < 4; index++)
             {
                 float angle = index * Mathf.PI * .5f;
-                Vector3 support = ground.point + new Vector3(Mathf.Cos(angle) * radius, .5f, Mathf.Sin(angle) * radius);
+                Vector3 support = ground.point + placementRotation * new Vector3(Mathf.Cos(angle) * radius, .5f, Mathf.Sin(angle) * radius);
                 if (!Physics.Raycast(support, Vector3.down, out RaycastHit foot, .8f, ~0, QueryTriggerInteraction.Ignore)
                     || Vector3.Angle(foot.normal, Vector3.up) > definition.MaximumSlope
                     || Mathf.Abs(foot.point.y - ground.point.y) > .18f)
                 { reason = "La base necesita apoyo completo"; return false; }
             }
             foreach (Collider obstacle in Physics.OverlapBox(ground.point + Vector3.up * (definition.Height * .5f + .2f),
-                         new Vector3(radius, definition.Height * .5f - .1f, radius), Quaternion.identity,
+                         new Vector3(radius, definition.Height * .5f - .1f, radius), placementRotation,
                          ~0, QueryTriggerInteraction.Ignore))
             {
                 // No se ignora al jugador ni el resto de una malla de suelo: también bloquean el volumen.
