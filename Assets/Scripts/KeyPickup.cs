@@ -1,16 +1,34 @@
 using UnityEngine;
 
+
+[RequireComponent(typeof(Collider))]
 public class KeyPickup : MonoBehaviour
 {
+    
+    public static bool getBossKey = false;
+
     [Header("Identificador de la Llave")]
     [SerializeField] private string keyID = "BossKey";
 
-    [Header("Efectos Visuales (Opcional)")]
+    [Header("Efectos Visuales")]
     [SerializeField] private float rotationSpeed = 90f;
     [SerializeField] private float floatSpeed = 2f;
     [SerializeField] private float floatAmplitude = 0.25f;
 
     private Vector3 startPosition;
+
+    private void Awake()
+    {
+        
+        getBossKey = false;
+
+        
+        Collider col = GetComponent<Collider>();
+        if (col != null)
+        {
+            col.isTrigger = true;
+        }
+    }
 
     private void Start()
     {
@@ -31,12 +49,8 @@ public class KeyPickup : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
-            //  Notificar al sistema de inventario o al script del jugador
-            // Ejemplo si tienes un script en el player:
-            // PlayerInventory inventory = other.GetComponent<PlayerInventory>();
-            // if (inventory != null) inventory.AddKey(keyID);
-
-            Debug.Log($"¡Llave recogida: {keyID}!");
+            
+            getBossKey = true;
 
             
             Destroy(gameObject);
