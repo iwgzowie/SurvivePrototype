@@ -9,92 +9,98 @@ public class StormLightingSkybox : MonoBehaviour // Controla la iluminación de 
     [SerializeField] private Vector3 rotacionNoche = new Vector3(220f, -30f, 0f); // Rotación del sol durante la tormenta
     [SerializeField] private LightningController lightningController; // Controlador de los relámpagos
     [SerializeField] private SkyboxController skyboxController; // Controlador que se encarga de los colores del Skybox
+    [SerializeField] private StreetLightsController streetLightsController; // Controlador de las luces de las calles
 
-    private float intensidadInicial; // Guarda la intensidad original de la Directional Light
-    private float intensidadAmbientalInicial; // Guarda la iluminación ambiental original
-    private Quaternion rotacionInicial; // Guarda la rotación original del sol
-    private float tiempoTranscurrido = 0f; // Guarda cuánto tiempo lleva la transición
+    private float intensidadInicial;
+    private float intensidadAmbientalInicial;
+    private Quaternion rotacionInicial;
+    private float tiempoTranscurrido = 0f;
 
-    private bool nocheActivada = false; // Indica si comenzó la transición
+    private bool nocheActivada = false;
 
-    private void Start() // Se ejecuta al comenzar el juego
+    private void Start()
     {
-        if (luzSol == null) // Comprobamos que haya una Directional Light asignada
+        if (luzSol == null)
         {
-            return; // Salimos si no hay una luz asignada
+            return;
         }
 
-        intensidadInicial = luzSol.intensity; // Guardamos la intensidad inicial del día
-        intensidadAmbientalInicial = RenderSettings.ambientIntensity; // Guardamos la iluminación ambiental inicial
-        rotacionInicial = luzSol.transform.rotation; // Guardamos la rotación inicial del sol
+        intensidadInicial = luzSol.intensity;
+        intensidadAmbientalInicial = RenderSettings.ambientIntensity;
+        rotacionInicial = luzSol.transform.rotation;
     }
 
-    private void Update() // Se ejecuta cada frame
+    private void Update()
     {
-        if (!nocheActivada) // Si todavía no comenzó la transición
+        if (!nocheActivada)
         {
-            return; // No hacemos nada
+            return;
         }
 
-        tiempoTranscurrido += Time.deltaTime; // Aumentamos el tiempo transcurrido
+        tiempoTranscurrido += Time.deltaTime;
 
-        float progreso = tiempoTranscurrido / tiempoTransicion; // Calculamos el progreso de la transición
+        float progreso = tiempoTranscurrido / tiempoTransicion;
 
-        progreso = Mathf.Clamp01(progreso); // Limitamos el progreso entre 0 y 1
+        progreso = Mathf.Clamp01(progreso);
 
         luzSol.intensity = Mathf.Lerp(
-            intensidadInicial, // Intensidad inicial del sol
-            intensidadNoche, // Intensidad final de la tormenta
-            progreso // Progreso de la transición
+            intensidadInicial,
+            intensidadNoche,
+            progreso
         );
 
         RenderSettings.ambientIntensity = Mathf.Lerp(
-            intensidadAmbientalInicial, // Iluminación ambiental inicial
-            intensidadAmbientalNoche, // Iluminación ambiental final
-            progreso // Progreso de la transición
+            intensidadAmbientalInicial,
+            intensidadAmbientalNoche,
+            progreso
         );
 
-        Quaternion rotacionObjetivo = Quaternion.Euler(rotacionNoche); // Convertimos la rotación final en Quaternion
+        Quaternion rotacionObjetivo = Quaternion.Euler(rotacionNoche);
 
         luzSol.transform.rotation = Quaternion.Lerp(
-            rotacionInicial, // Rotación inicial del sol
-            rotacionObjetivo, // Rotación final del sol
-            progreso // Progreso de la transición
+            rotacionInicial,
+            rotacionObjetivo,
+            progreso
         );
 
-        if (skyboxController != null) // Comprobamos que SkyboxController esté asignado
+        if (skyboxController != null)
         {
-            skyboxController.ActualizarTransicion(progreso); // Le enviamos el progreso actual de la transición
+            skyboxController.ActualizarTransicion(progreso);
         }
 
-        if (progreso >= 1f) // Comprobamos si terminó la transición
+        if (progreso >= 1f)
         {
-            luzSol.intensity = intensidadNoche; // Aseguramos la intensidad final
-            RenderSettings.ambientIntensity = intensidadAmbientalNoche; // Aseguramos la iluminación ambiental final
-            luzSol.transform.rotation = rotacionObjetivo; // Aseguramos la rotación final del sol
+            luzSol.intensity = intensidadNoche;
+            RenderSettings.ambientIntensity = intensidadAmbientalNoche;
+            luzSol.transform.rotation = rotacionObjetivo;
 
-            if (skyboxController != null) // Comprobamos que SkyboxController esté asignado
+            if (skyboxController != null)
             {
-                skyboxController.ActualizarTransicion(1f); // Aseguramos que el Skybox llegue al color final
+                skyboxController.ActualizarTransicion(1f);
             }
 
-            nocheActivada = false; // Dejamos de actualizar la iluminación
+            nocheActivada = false;
 
-            if (lightningController != null) // Comprobamos que LightningController esté asignado
+            if (lightningController != null)
             {
-                lightningController.ActivarRelampagos(); // Activamos los relámpagos al terminar la noche
+                lightningController.ActivarRelampagos();
+            }
+
+            if (streetLightsController != null)
+            {
+                streetLightsController.ActivarLuces();
             }
         }
     }
 
-    public void ActivarNoche() // Comienza la transición de día a noche
+    public void ActivarNoche()
     {
-        if (luzSol == null) // Comprobamos que haya una luz asignada
+        if (luzSol == null)
         {
-            return; // Si no hay luz, no hacemos nada
+            return;
         }
 
-        tiempoTranscurrido = 0f; // Reiniciamos el contador de transición
-        nocheActivada = true; // Activamos la transición
+        tiempoTranscurrido = 0f;
+        nocheActivada = true;
     }
 }
