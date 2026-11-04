@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: WD_HuntingRifle
   m_EditorClassIdentifier: Assembly-CSharp::Survive.Items.WeaponDefinition
   displayName: Rifle de caza
-  icon: {fileID: 21300000, guid: 63ce1141a7f7a52459417ba6ad4e9c71, type: 3}
+  icon: {fileID: 21300000, guid: 43609e5925188db4aabb9095e1af0eaf, type: 3}
   damage: 75
   range: 160
   shotsPerSecond: 1.2

@@ -53,6 +53,7 @@ namespace Survive.Items
         private int reserveAmmo;
         private bool isReloading;
         private float reloadElapsed;
+        private ExplosiveAmmoDefinition explosiveMagazine;
 
         public event Action<WeaponItem> StateChanged;
         /// <summary>Final real de la recarga, antes de notificar el nuevo estado de munición.</summary>
@@ -90,6 +91,9 @@ namespace Survive.Items
             }
         }
         public bool HasAmmo => AmmoInMagazine > 0;
+        public ExplosiveAmmoDefinition LoadedExplosiveAmmo => HasAmmo ? explosiveMagazine : null;
+        public bool CanLoadExplosiveMagazine => LoadedExplosiveAmmo == null && !isReloading
+            && ReserveAmmo <= int.MaxValue - AmmoInMagazine;
         public bool IsReloading => isReloading;
         public float ReloadProgress => isReloading ? Mathf.Clamp01(reloadElapsed / ReloadDuration) : 0f;
         public Vector3 EquippedLocalPosition => equippedLocalPosition;
@@ -168,7 +172,8 @@ namespace Survive.Items
         public bool TryStartReload()
         {
             EnsureAmmunitionInitialized();
-            if (isReloading || ammoInMagazine >= MagazineSize || reserveAmmo <= 0)
+            // No mezclar balas normales con el cargador especial ni perder las balas pagadas.
+            if (LoadedExplosiveAmmo != null || isReloading || ammoInMagazine >= MagazineSize || reserveAmmo <= 0)
                 return false;
 
             isReloading = true;
@@ -188,6 +193,7 @@ namespace Survive.Items
                 return false;
 
             int transferred = Mathf.Min(Mathf.Max(0, MagazineSize - ammoInMagazine), reserveAmmo);
+            explosiveMagazine = null;
             ammoInMagazine += transferred;
             reserveAmmo -= transferred;
             isReloading = false;
@@ -223,11 +229,20 @@ namespace Survive.Items
         /// <summary>Reinicio explícito: equipar o soltar el arma nunca repone su munición.</summary>
         public void ResetAmmunition()
         {
+            explosiveMagazine = null;
             ammunitionInitialized = false;
             isReloading = false;
             reloadElapsed = 0f;
             EnsureAmmunitionInitialized();
             StateChanged?.Invoke(this);
+        }
+
+        /// <summary>Carga un cargador completo y devuelve las balas normales restantes a la reserva.</summary>
+        public bool TryLoadExplosiveMagazine(ExplosiveAmmoDefinition ammunition)
+        {
+            if (ammunition == null || !CanLoadExplosiveMagazine) return false;
+            reserveAmmo += ammoInMagazine; ammoInMagazine = MagazineSize; explosiveMagazine = ammunition;
+            StateChanged?.Invoke(this); return true;
         }
 
         public void ShowShot(Vector3 start, Vector3 end, bool hit, int tracerIndex = 0)

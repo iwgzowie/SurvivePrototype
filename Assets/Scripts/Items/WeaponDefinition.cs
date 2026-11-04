@@ -22,7 +22,7 @@ namespace Survive.Items
     public sealed class WeaponDefinition : ScriptableObject
     {
         [SerializeField] private string displayName = "Rifle";
-        [SerializeField, Tooltip("Fotografía del modelo usada en la hotbar.")]
+        [SerializeField, Tooltip("Icono compartido por inventario, HUD y vendedor. Se asigna con SyntyWeaponIconSetup.")]
         private Sprite icon;
         [SerializeField, Min(0f)] private float damage = 25f;
         [SerializeField, Min(0.1f)] private float range = 80f;

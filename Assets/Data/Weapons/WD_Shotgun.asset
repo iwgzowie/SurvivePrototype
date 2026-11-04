@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: WD_Shotgun
   m_EditorClassIdentifier: Assembly-CSharp::Survive.Items.WeaponDefinition
   displayName: Escopeta
-  icon: {fileID: 21300000, guid: da59312814b03dc408430a1a656b0d69, type: 3}
+  icon: {fileID: 21300000, guid: 0d3fc6269d426714482954cff727ee56, type: 3}
   damage: 12
   range: 35
   shotsPerSecond: 1.1

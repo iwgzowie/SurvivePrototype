@@ -203,6 +203,7 @@ namespace Survive.Turrets
             if (!HasValidPlacement) return false;
             AutoTurret turret = Instantiate(definition.DeployedPrefab, placementPosition, placementRotation);
             if (turret == null) return false;
+            turret.InitializeOwner(gameObject);
             Count--;
             CancelPlacement();
             Changed?.Invoke();

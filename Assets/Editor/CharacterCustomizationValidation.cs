@@ -347,13 +347,13 @@ namespace Survive.Editor
             return item == root;
         }
 
-        [MenuItem("Survive/Characters/Validar flujo real en Play Mode")]
+        [MenuItem("Survive/Characters/Validar estudio autónomo en Play Mode")]
         public static void RunPlayMode()
         {
             StartPlayValidation(false);
         }
 
-        [MenuItem("Survive/Characters/Validar sólo UI del creador")]
+        [MenuItem("Survive/Characters/Validar sólo UI del estudio autónomo")]
         public static void RunCreatorUI()
         {
             StartPlayValidation(true);
@@ -517,7 +517,7 @@ namespace Survive.Editor
                         break;
                     case 5:
                         if (!GameplayReady()) return;
-                        Require(SceneManager.GetActiveScene().name == "Level 1", "Confirmar carga Level 1");
+                        Require(SceneManager.GetActiveScene().name == "Level 2", "Confirmar carga Level 2");
                         ValidateStudioCleaned();
                         Require(CharacterProfileStore.TryLoad(TestProfilePath, out CharacterProfile saved), "Confirmar persiste perfil");
                         Check(saved.displayName == "Validadora Sidekick", "Nombre escrito en UI persistido");
@@ -536,7 +536,7 @@ namespace Survive.Editor
                         break;
                     case 7:
                         if (!GameplayReady()) return;
-                        Require(SceneManager.GetActiveScene().name == "Level 1", "Segundo Play entra directo a partida");
+                        Require(SceneManager.GetActiveScene().name == "Level 2", "Segundo Play entra directo a partida");
                         Check(FindCreator() == null, "Con perfil no reaparece creador");
                         Check(CharacterProfileStore.TryLoad(TestProfilePath, out CharacterProfile reloaded) && JsonUtility.ToJson(reloaded) == expectedProfileJson, "Perfil estable después de recargar escenas");
                         ValidateRuntimePlayer();
@@ -1434,7 +1434,26 @@ namespace Survive.Editor
         {
             Button play = FindPlayButton();
             Require(play != null, "Botón Play de escena enlazado a StartGame");
-            ClickThroughEventSystem(play, "Play del menú principal");
+            // Este harness conserva el barrido del estudio autónomo. La integración
+            // del escenario se recorre con SceneAgentCreationValidation, incluido Jugar.
+            MenuBehaviour menu = UnityEngine.Object.FindObjectsByType<MenuBehaviour>(FindObjectsSortMode.None).First(item => item.IsMainMenu);
+            var serialized = new SerializedObject(menu);
+            SerializedProperty preview = serialized.FindProperty("agentPreview"), camera = serialized.FindProperty("agentCameraSwitch");
+            UnityEngine.Object previousPreview = preview.objectReferenceValue, previousCamera = camera.objectReferenceValue;
+            preview.objectReferenceValue = null;
+            camera.objectReferenceValue = null;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            try { ClickThroughEventSystem(play, "Play del menú principal"); }
+            finally
+            {
+                if (menu != null)
+                {
+                    serialized.Update();
+                    preview.objectReferenceValue = previousPreview;
+                    camera.objectReferenceValue = previousCamera;
+                    serialized.ApplyModifiedPropertiesWithoutUndo();
+                }
+            }
         }
 
         static Button FindPlayButton() => UnityEngine.Object.FindObjectsByType<Button>(FindObjectsSortMode.None).FirstOrDefault(button =>
@@ -1582,7 +1601,7 @@ namespace Survive.Editor
 
         static bool GameplayReady()
         {
-            if (SceneManager.GetActiveScene().name != "Level 1") return false;
+            if (SceneManager.GetActiveScene().name != "Level 2") return false;
             var player = UnityEngine.Object.FindFirstObjectByType<PlayerWeaponController>();
             var appearance = player != null ? player.GetComponent<SidekickCharacterAppearance>() : null;
             return appearance != null && appearance.AppliedProfile != null && Camera.main != null;

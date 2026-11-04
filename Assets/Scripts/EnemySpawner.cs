@@ -31,6 +31,12 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField] private float restDurationAfterBoss = 120f;
     [SerializeField] private bool autoStart = false;
 
+    [Header("Velocidad por oleada")]
+    [Tooltip("Aumento lineal sobre el multiplicador de velocidad de la plantilla. 0.04 = +4 % por oleada. No se reinicia al matar al boss.")]
+    [SerializeField, Min(0.001f)] private float speedIncreasePerWave = .04f;
+    public float SpeedMultiplierForWave(float baseMultiplier, int waveIndex) =>
+        Mathf.Max(.01f, baseMultiplier) * (1f + Mathf.Max(0, waveIndex) * Mathf.Max(.001f, speedIncreasePerWave));
+
     [Header("Configuracion del Jefe Aleatoria")]
     [SerializeField, Min(1)] private int minWavesBeforeBoss = 2;
     [SerializeField, Min(1)] private int maxWavesBeforeBoss = 5;
@@ -57,6 +63,7 @@ public class EnemySpawner : MonoBehaviour
     private bool healthSubscribed;
     private int nextSpawnPoint;
     private bool waitingForBossDefeat = false;
+    private float previousWaveSpeedMultiplier;
 
     // Variables internas para el ciclo de oleadas y jefes
     private int wavesForCurrentBossCycle;
@@ -123,10 +130,6 @@ public class EnemySpawner : MonoBehaviour
 
     public bool StartWaves()
     {
-        if (GameStatsManager.Instance != null)
-        {
-            GameStatsManager.Instance.ResetStats();
-        }
 
         if (!isActiveAndEnabled || State != WaveRunState.Idle) return false;
         ResolveGameReferences();
@@ -146,9 +149,11 @@ public class EnemySpawner : MonoBehaviour
             return false;
         }
 
+        GameStatsManager.GetOrCreate().ResetStats();
         runningSampleDistance = navMeshSampleDistance;
         runningSpawnAttempts = maxSpawnAttempts;
         CurrentWaveIndex = -1;
+        previousWaveSpeedMultiplier = 0f;
 
         GenerateNewBossCycle();
 
@@ -209,11 +214,18 @@ public class EnemySpawner : MonoBehaviour
                     bossSpawner.OnBossSpawned += TrackBossHealth;
                     bossSpawner.OnBossDefeated += HandleBossDefeatedExternal;
 
-                    bossSpawner.SpawnBoss(currentWave.healthMultiplier, currentWave.damageMultiplier, currentWave.speedMultiplier);
+                    if (!bossSpawner.SpawnBoss(currentWave.healthMultiplier, currentWave.damageMultiplier, currentWave.speedMultiplier, playerHealth.transform))
+                    {
+                        waitingForBossDefeat = false;
+                        UnsubscribeBossEvents();
+                        Fail("No se pudo generar el jefe sobre su NavMesh; revisá el prefab y el punto de aparición.");
+                        yield break;
+                    }
                 }
                 else
                 {
-                    Debug.LogError("EnemySpawner: Es oleada de jefe pero falta asignar el componente BossSpawner.");
+                    Fail("Es oleada de jefe pero falta asignar BossSpawner.");
+                    yield break;
                 }
 
                 State = WaveRunState.WaitingForEnemies;
@@ -286,6 +298,11 @@ public class EnemySpawner : MonoBehaviour
     {
         EnemyWave template = baseWaveTemplates[waveIndex % baseWaveTemplates.Count];
         float difficultyFactor = 1f + (waveIndex * 0.15f);
+        float speed = SpeedMultiplierForWave(template.speedMultiplier, waveIndex);
+        if (waveIndex > 0)
+            speed = Mathf.Max(speed, previousWaveSpeedMultiplier
+                + Mathf.Max(.01f, baseWaveTemplates[0].speedMultiplier) * Mathf.Max(.001f, speedIncreasePerWave));
+        previousWaveSpeedMultiplier = speed;
 
         return new EnemyWave
         {
@@ -300,7 +317,7 @@ public class EnemySpawner : MonoBehaviour
             spawnInterval = Mathf.Max(0.1f, template.spawnInterval / Mathf.Sqrt(difficultyFactor)),
             spawnRadius = template.spawnRadius,
             healthMultiplier = template.healthMultiplier * difficultyFactor * (isBossWave ? 2.5f : 1f),
-            speedMultiplier = Mathf.Min(2.0f, template.speedMultiplier * (1f + (waveIndex * 0.04f))),
+            speedMultiplier = speed,
             damageMultiplier = template.damageMultiplier * difficultyFactor * (isBossWave ? 1.5f : 1f),
             spawnPoints = template.spawnPoints != null && template.spawnPoints.Count > 0
                 ? new List<Transform>(template.spawnPoints)
@@ -387,6 +404,8 @@ public class EnemySpawner : MonoBehaviour
             controller.ApplyWaveMultipliers(wave.damageMultiplier, wave.speedMultiplier);
         }
 
+        EnemyReachability.Track(instance, playerHealth.transform);
+
         SpawnedInCurrentWave++;
         OnEnemySpawned?.Invoke(health);
         return true;
@@ -397,9 +416,8 @@ public class EnemySpawner : MonoBehaviour
         position = default;
         rotation = transform.rotation;
         NavMeshAgent agent = prefab.GetComponent<NavMeshAgent>();
-        var filter = new NavMeshQueryFilter { agentTypeID = agent != null ? agent.agentTypeID : 0, areaMask = agent != null ? agent.areaMask : NavMesh.AllAreas };
+        if (agent == null || playerHealth == null) return false;
         List<Transform> points = wave.spawnPoints;
-        var path = new NavMeshPath();
         for (int attempt = 0; attempt < Mathf.Max(1, runningSpawnAttempts); attempt++)
         {
             Transform point = transform;
@@ -411,13 +429,7 @@ public class EnemySpawner : MonoBehaviour
             }
             Vector2 offset = UnityEngine.Random.insideUnitCircle * wave.spawnRadius;
             Vector3 desired = point.position + new Vector3(offset.x, 0f, offset.y);
-            if (!NavMesh.SamplePosition(desired, out NavMeshHit hit, Mathf.Max(.1f, runningSampleDistance), filter)) continue;
-            if (!NavMesh.SamplePosition(point.position, out NavMeshHit anchor, Mathf.Max(.1f, runningSampleDistance), filter)
-                || !NavMesh.CalculatePath(anchor.position, hit.position, filter, path)
-                || path.status != NavMeshPathStatus.PathComplete) continue;
-
-            float baseOffset = agent != null ? agent.baseOffset : 0f;
-            Vector3 rootPosition = hit.position + Vector3.up * baseOffset;
+            if (!EnemyNavigation.TryPosition(agent, desired, playerHealth.transform, Mathf.Max(.1f, runningSampleDistance), out var rootPosition)) continue;
             bool occupied = false;
             foreach (EnemyHealth other in aliveEnemies.Keys)
             {
@@ -433,7 +445,8 @@ public class EnemySpawner : MonoBehaviour
             rotation = point.rotation;
             return true;
         }
-        return false;
+        // Un punto fijo puede quedar al otro lado de una puerta. Buscar en la zona habilitada del jugador.
+        return EnemyNavigation.TryNearPlayer(agent, playerHealth.transform, out position);
     }
 
     private void RemoveDestroyedEnemies()

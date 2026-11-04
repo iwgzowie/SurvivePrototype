@@ -274,7 +274,7 @@ MonoBehaviour:
     UpTargetOffset: 0
     RightTargetOffset: 0
     ForwardTargetOffset: 0
-    RightCameraOffset: 0.5
+    RightCameraOffset: 1
     UpCameraOffset: 0.5
     ForwardCameraOffset: 0
     RotationSensibility: 1

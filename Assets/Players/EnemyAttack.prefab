@@ -95,6 +95,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHealth
   maxHealth: 100
   currentHealth: 0
+  killCoins: 10
+  rewardSound: {fileID: 8300000, guid: ec96a7b784de44f48b320f3af2712e98, type: 3}
   destroyDelay: 3.5744448
   meshRenderer: {fileID: 295553588870230428}
   hitColor: {r: 1, g: 0, b: 0, a: 1}
@@ -117,7 +119,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::EnemyAttack
   currentState: 0
   weaponEquip: {fileID: 0}
-  moveSpeed: 1.5
+  moveSpeed: 6
   attackDamage: 10
   attackRange: 10
   attackCooldown: 2.5

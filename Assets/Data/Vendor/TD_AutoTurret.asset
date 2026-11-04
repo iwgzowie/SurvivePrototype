@@ -17,8 +17,10 @@ MonoBehaviour:
   deployedPrefab: {fileID: 5328623434294897605, guid: 1a5247a936cdf0e41a0f10d35bacfc5d, type: 3}
   range: 15
   damage: 20
-  shotsPerSecond: 4
-  footprintRadius: 0.65
+  shotsPerSecond: 2
+  maxHealth: 150
+  healthCostPerShot: 10
+  footprintRadius: 1.2
   height: 1.4
   maximumSlope: 15
   lifetimeSeconds: 0

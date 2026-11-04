@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2dc9166c57d44c8e8dfd0e135884d458, type: 3}
+  m_Name: SyntyVendorTheme
+  m_EditorClassIdentifier: Assembly-CSharp::Survive.UI.VendorUITheme
+  font: {fileID: 11400000, guid: dfd8cd8535233d749a6ceca49d7ff0b3, type: 2}
+  panel: {fileID: 21300000, guid: 657096734ab6ba74a9d219de078b972d, type: 3}
+  card: {fileID: 21300000, guid: a2356a97cc758cc40b1c4db40108a075, type: 3}
+  frame: {fileID: 21300000, guid: a60a8c615a7747d4da15bbaddc840ba0, type: 3}
+  button: {fileID: 21300000, guid: d3d199d7de54c954d80b31aaca7858a6, type: 3}
+  currency: {fileID: 21300000, guid: 30236064724b6004fbd6f445e32121e1, type: 3}
+  background: {r: 0.025, g: 0.045, b: 0.065, a: 0.98}
+  cardColor: {r: 0.045, g: 0.075, b: 0.1, a: 1}
+  accent: {r: 0.94, g: 0.74, b: 0.36, a: 1}
+  muted: {r: 0.66, g: 0.74, b: 0.8, a: 1}

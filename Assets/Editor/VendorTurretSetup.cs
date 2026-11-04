@@ -106,65 +106,15 @@ namespace Survive.Editor
         private static void CreateTurret(TurretDefinition definition, Material body, Material accent, Material tracer)
         {
             if (AssetDatabase.LoadAssetAtPath<GameObject>(TurretPath) != null) return;
-            var root = new GameObject("AutoTurret");
-            try
-            {
-                var turret = root.AddComponent<AutoTurret>();
-                var box = root.AddComponent<BoxCollider>();
-                box.center = new Vector3(0, .65f, 0); box.size = new Vector3(1.1f, 1.3f, 1.1f);
-                var obstacle = root.AddComponent<NavMeshObstacle>();
-                obstacle.shape = NavMeshObstacleShape.Capsule;
-                obstacle.center = new Vector3(0, .7f, 0); obstacle.radius = .65f; obstacle.height = 1.4f;
-                obstacle.carving = true;
-                Part(root.transform, "Base", new Vector3(0, .12f, 0), new Vector3(1.1f, .24f, 1.1f), body);
-                Part(root.transform, "Column", new Vector3(0, .52f, 0), new Vector3(.22f, .8f, .22f), body);
-                Part(root.transform, "Battery", new Vector3(0, .37f, -.3f), new Vector3(.5f, .35f, .3f), accent);
-                Transform head = new GameObject("RotatingHead").transform;
-                head.SetParent(root.transform, false); head.localPosition = new Vector3(0, .95f, -.2f);
-                Part(head, "Receiver", Vector3.zero, new Vector3(.42f, .24f, .45f), body);
-                WeaponItem weapon = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Items/Weapons/Weapon_MachineGun.prefab")?.GetComponent<WeaponItem>();
-                if (weapon == null) throw new InvalidOperationException("Falta Weapon_MachineGun.");
-                Transform visual = weapon.transform.Find("SyntyVisual");
-                if (visual == null) visual = weapon.transform.Cast<Transform>()
-                    .FirstOrDefault(child => child.name.StartsWith("SM_Wep_", StringComparison.Ordinal));
-                if (visual == null) throw new InvalidOperationException("Falta SyntyVisual de la ametralladora.");
-                GameObject model = Object.Instantiate(visual.gameObject, head, false);
-                model.name = "MachineGunVisual"; model.transform.localScale *= .65f;
-                foreach (Collider collider in model.GetComponentsInChildren<Collider>()) Object.DestroyImmediate(collider);
-                Transform muzzle = new GameObject("Muzzle").transform;
-                muzzle.SetParent(head, false);
-                muzzle.localPosition = weapon.transform.InverseTransformPoint(weapon.Muzzle.position) * .65f;
-                LineRenderer line = new GameObject("Tracer").AddComponent<LineRenderer>();
-                line.transform.SetParent(root.transform, false); line.positionCount = 2;
-                line.useWorldSpace = true; line.widthMultiplier = .025f; line.sharedMaterial = tracer;
-                line.enabled = false; line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                AudioSource audio = root.AddComponent<AudioSource>();
-                audio.playOnAwake = false; audio.spatialBlend = 1; audio.minDistance = 2; audio.maxDistance = 35;
-                Set(turret, "definition", definition, "head", head, "muzzle", muzzle, "tracer", line,
-                    "shotAudio", audio, "presentation", weapon.Definition);
-                GameObject prefab = PrefabUtility.SaveAsPrefabAsset(root, TurretPath);
-                Set(definition, "deployedPrefab", prefab.GetComponent<AutoTurret>());
-            }
-            finally { Object.DestroyImmediate(root); }
+            SteampunkTurretModelSetup.PrepareAssets();
+            SteampunkTurretModelSetup.BuildMeshes();
+            SteampunkTurretModelSetup.CreateTurret(definition);
         }
 
         private static void CreateItem(TurretDefinition definition, Material body, Material accent)
         {
             if (AssetDatabase.LoadAssetAtPath<GameObject>(ItemPath) != null) return;
-            var root = new GameObject("TurretItem");
-            try
-            {
-                TurretItem item = root.AddComponent<TurretItem>();
-                root.GetComponent<SphereCollider>().isTrigger = true;
-                root.GetComponent<SphereCollider>().radius = .6f;
-                root.GetComponent<Rigidbody>().isKinematic = true;
-                root.GetComponent<Rigidbody>().useGravity = false;
-                Part(root.transform, "KitCase", Vector3.zero, new Vector3(.55f, .3f, .4f), body);
-                Part(root.transform, "KitMark", new Vector3(0, .16f, 0), new Vector3(.4f, .035f, .12f), accent);
-                Set(item, "definition", definition);
-                PrefabUtility.SaveAsPrefabAsset(root, ItemPath);
-            }
-            finally { Object.DestroyImmediate(root); }
+            SteampunkTurretModelSetup.CreateItem(definition);
         }
 
         private static VendorCatalog CreateCatalog(TurretDefinition definition)

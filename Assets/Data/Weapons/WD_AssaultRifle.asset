@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: WD_AssaultRifle
   m_EditorClassIdentifier: Assembly-CSharp::Survive.Items.WeaponDefinition
   displayName: Rifle de asalto
-  icon: {fileID: 21300000, guid: d99c9e26c1608504595a72333afb003f, type: 3}
+  icon: {fileID: 21300000, guid: 279f9279ed8f90a42bf049d07ce2e5db, type: 3}
   damage: 25
   range: 100
   shotsPerSecond: 8

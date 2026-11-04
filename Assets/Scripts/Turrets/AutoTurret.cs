@@ -10,19 +10,30 @@ namespace Survive.Turrets
         [SerializeField] private TurretDefinition definition;
         [SerializeField] private Transform head;
         [SerializeField] private Transform muzzle;
+        [SerializeField] private Transform barrelPitch;
+        [SerializeField] private Transform alternateMuzzle;
         [SerializeField] private LineRenderer tracer;
         [SerializeField] private AudioSource shotAudio;
         [SerializeField] private WeaponDefinition presentation;
         private readonly Collider[] candidates = new Collider[64];
+        private GameObject owner;
+        public void InitializeOwner(GameObject player) => owner = player;
         private EnemyHealth target;
         private Collider targetCollider;
         private float nextScan, nextShot, tracerUntil, activatedAt;
         public TurretDefinition Definition => definition;
         public EnemyHealth CurrentTarget => target;
         public int ShotsFired { get; private set; }
+        public Vector3 LastShotOrigin { get; private set; }
+        public float CurrentHealth { get; private set; }
+        public float MaxHealth => definition != null ? definition.MaxHealth : 150;
+        public bool IsDepleted => CurrentHealth <= 0;
+        public event System.Action HealthChanged;
+        private bool healthInitialized;
 
         private void OnEnable()
         {
+            if (!healthInitialized) { CurrentHealth = MaxHealth; healthInitialized = true; }
             activatedAt = Time.time;
             nextScan = nextShot = Time.time;
             if (tracer != null) tracer.enabled = false;
@@ -32,7 +43,7 @@ namespace Survive.Turrets
 
         private void Update()
         {
-            if (definition == null || Time.timeScale <= 0) return;
+            if (definition == null || IsDepleted || Time.timeScale <= 0) return;
             if (definition.LifetimeSeconds > 0 && Time.time - activatedAt >= definition.LifetimeSeconds)
             { Destroy(gameObject); return; }
             if (tracer != null && Time.time >= tracerUntil) tracer.enabled = false;
@@ -42,9 +53,7 @@ namespace Survive.Turrets
                 nextScan = Time.time + .15f;
             }
             if (!ValidTarget(target, targetCollider)) return;
-            Vector3 point = targetCollider.bounds.center;
-            Vector3 aim = point - head.position;
-            if (aim.sqrMagnitude > .001f) head.rotation = Quaternion.LookRotation(aim);
+            AimHead(targetCollider.bounds.center);
             if (Time.time >= nextShot) TryFire();
         }
 
@@ -64,7 +73,8 @@ namespace Survive.Turrets
                 EnemyHealth enemy = hits[i].GetComponentInParent<EnemyHealth>();
                 if (!ValidTarget(enemy, hits[i])) continue;
                 float distance = (hits[i].bounds.center - transform.position).sqrMagnitude;
-                if (distance >= best || !HasLineOfSight(head.position, hits[i].bounds.center, enemy, out _)) continue;
+                Vector3 origin = barrelPitch != null ? barrelPitch.position : head.position;
+                if (distance >= best || !HasLineOfSight(origin, hits[i].bounds.center, enemy, out _)) continue;
                 best = distance;
                 target = enemy;
                 targetCollider = hits[i];
@@ -95,14 +105,17 @@ namespace Survive.Turrets
 
         public bool TryFire()
         {
-            if (!isActiveAndEnabled || Time.timeScale <= 0 || Time.time < nextShot
-                || !ValidTarget(target, targetCollider) || muzzle == null
-                || !HasLineOfSight(muzzle.position, targetCollider.bounds.center, target, out RaycastHit hit)) return false;
+            if (!isActiveAndEnabled || IsDepleted || Time.timeScale <= 0 || Time.time < nextShot
+                || !ValidTarget(target, targetCollider) || muzzle == null || head == null) return false;
+            AimHead(targetCollider.bounds.center);
+            Transform firingMuzzle = alternateMuzzle != null && ShotsFired % 2 == 1 ? alternateMuzzle : muzzle;
+            if (!HasLineOfSight(firingMuzzle.position, targetCollider.bounds.center, target, out RaycastHit hit)) return false;
             nextShot = Time.time + 1f / definition.ShotsPerSecond;
+            LastShotOrigin = firingMuzzle.position;
             ShotsFired++;
             if (tracer != null)
             {
-                tracer.SetPosition(0, muzzle.position);
+                tracer.SetPosition(0, firingMuzzle.position);
                 tracer.SetPosition(1, hit.point);
                 tracer.enabled = true;
                 tracerUntil = Time.time + .055f;
@@ -111,10 +124,35 @@ namespace Survive.Turrets
                 shotAudio.PlayOneShot(presentation.ShotSound, presentation.ShotVolume * .6f);
             WeaponVfxProfile profile = presentation != null ? presentation.VfxProfile : null;
             if (profile != null && profile.MuzzlePrefab != null)
-                WeaponVfxPool.GetOrCreate(gameObject.scene)?.Spawn(profile.MuzzlePrefab, muzzle.position,
-                    muzzle.rotation, profile.MuzzleScale, profile.MuzzleLifetime, muzzle);
-            target.TakeDamage(definition.Damage, hit.point);
+                WeaponVfxPool.GetOrCreate(gameObject.scene)?.Spawn(profile.MuzzlePrefab, firingMuzzle.position,
+                    firingMuzzle.rotation, profile.MuzzleScale, profile.MuzzleLifetime, firingMuzzle);
+            target.TakeDamage(definition.Damage, hit.point, owner);
+            TakeDamage(definition.HealthCostPerShot);
             return true;
+        }
+
+        public void TakeDamage(float damage)
+        {
+            if (IsDepleted || Time.timeScale <= 0 || damage <= 0 || float.IsNaN(damage) || float.IsInfinity(damage)) return;
+            CurrentHealth = Mathf.Max(0, CurrentHealth - damage);
+            HealthChanged?.Invoke();
+            if (!IsDepleted) return;
+            target = null; targetCollider = null;
+            foreach (var obstacle in GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>()) obstacle.enabled = false;
+            foreach (var body in GetComponentsInChildren<Collider>()) body.enabled = false;
+            Destroy(gameObject, .15f);
+        }
+
+        private void AimHead(Vector3 point)
+        {
+            if (head == null) return;
+            Vector3 aim = point - head.position;
+            if (aim.sqrMagnitude <= .001f) return;
+            if (barrelPitch == null) { head.rotation = Quaternion.LookRotation(aim); return; }
+            Vector3 horizontal = Vector3.ProjectOnPlane(aim, Vector3.up);
+            if (horizontal.sqrMagnitude > .001f) head.rotation = Quaternion.LookRotation(horizontal);
+            Vector3 local = head.InverseTransformDirection(point - barrelPitch.position);
+            barrelPitch.localRotation = Quaternion.Euler(-Mathf.Atan2(local.y, local.z) * Mathf.Rad2Deg, 0, 0);
         }
 
         private void OnDrawGizmosSelected()

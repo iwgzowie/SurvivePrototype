@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: WD_Pistol
   m_EditorClassIdentifier: Assembly-CSharp::Survive.Items.WeaponDefinition
   displayName: Pistola
-  icon: {fileID: 21300000, guid: e3adcac178f3dac44b4ef1c5f5e77f25, type: 3}
+  icon: {fileID: 21300000, guid: e782eae20d5fd684693da347f7f36a23, type: 3}
   damage: 24
   range: 60
   shotsPerSecond: 4

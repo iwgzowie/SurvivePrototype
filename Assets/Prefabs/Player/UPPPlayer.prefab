@@ -9281,7 +9281,7 @@ MonoBehaviour:
   UngroundedStepUpSpeed: 4
   UngroundedStepUpRayDistance: 0.1
   StoppingTimeOnStepPosition: 0.5
-  AimMode: 1
+  AimMode: 0
   FireModeWalkSpeed: 0.5
   FireModeRunSpeed: 1.3
   FireModeCrouchSpeed: 0.5

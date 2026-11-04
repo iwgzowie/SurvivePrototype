@@ -10,15 +10,21 @@ namespace Survive.Economy
     {
         public WeaponItem weaponPrefab;
         public TurretDefinition turret;
+        public ExplosiveAmmoDefinition explosiveMagazine;
+        public AmmoBoxDefinition commonAmmo;
         [Min(1)] public int price = 100;
-        public bool IsWeapon => weaponPrefab != null && turret == null;
-        public bool IsTurret => turret != null && weaponPrefab == null;
-        public bool IsValid => price > 0 && (IsWeapon || IsTurret && turret.DeployedPrefab != null);
-        public string DisplayName => IsWeapon ? weaponPrefab.DisplayName : turret != null ? turret.DisplayName : "Sin configurar";
-        public Sprite Icon => IsWeapon && weaponPrefab.Definition != null ? weaponPrefab.Definition.Icon : turret != null ? turret.Icon : null;
+        public bool IsWeapon => weaponPrefab != null && turret == null && explosiveMagazine == null && commonAmmo == null;
+        public bool IsTurret => turret != null && weaponPrefab == null && explosiveMagazine == null && commonAmmo == null;
+        public bool IsExplosiveMagazine => explosiveMagazine != null && weaponPrefab == null && turret == null && commonAmmo == null;
+        public bool IsCommonAmmo => commonAmmo != null && weaponPrefab == null && turret == null && explosiveMagazine == null;
+        public bool IsValid => price > 0 && (IsWeapon || IsTurret && turret.DeployedPrefab != null || IsExplosiveMagazine || IsCommonAmmo && commonAmmo.rounds > 0);
+        public string DisplayName => IsWeapon ? weaponPrefab.DisplayName : IsTurret ? turret.DisplayName : IsExplosiveMagazine ? explosiveMagazine.displayName : IsCommonAmmo ? commonAmmo.displayName : "Sin configurar";
+        public Sprite Icon => IsWeapon && weaponPrefab.Definition != null ? weaponPrefab.Definition.Icon : IsTurret ? turret.Icon : IsExplosiveMagazine ? explosiveMagazine.icon : IsCommonAmmo ? commonAmmo.icon : null;
         public string Description => IsWeapon
             ? $"Daño {weaponPrefab.Damage:0} · Cargador {weaponPrefab.MagazineSize} · Alcance {weaponPrefab.Range:0} m"
-            : turret != null ? $"Daño {turret.Damage:0} · {turret.ShotsPerSecond:0.#} tiros/s · Alcance {turret.Range:0} m" : "";
+            : IsTurret ? $"Vida {turret.MaxHealth:0} · Desgaste {turret.HealthCostPerShot:0}/tiro\nDaño {turret.Damage:0} · {turret.ShotsPerSecond:0.#} tiros/s · {turret.Range:0} m"
+            : IsExplosiveMagazine ? $"Carga el arma en mano · Explosión {explosiveMagazine.radius:0.#} m · Daño {explosiveMagazine.damage:0}"
+            : IsCommonAmmo ? $"+{commonAmmo.rounds} balas comunes · Reserva del arma equipada" : "";
     }
 
     [CreateAssetMenu(menuName = "Survive/Vendedor/Catálogo", fileName = "VendorCatalog")]

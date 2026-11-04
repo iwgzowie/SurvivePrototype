@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: WD_SMG
   m_EditorClassIdentifier: Assembly-CSharp::Survive.Items.WeaponDefinition
   displayName: Subfusil
-  icon: {fileID: 21300000, guid: 6370f5043022b6145af1fef9465c9af7, type: 3}
+  icon: {fileID: 21300000, guid: e5a6f86301562a041ab39ba6ec2f5514, type: 3}
   damage: 16
   range: 55
   shotsPerSecond: 12

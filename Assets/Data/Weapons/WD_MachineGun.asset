@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: WD_MachineGun
   m_EditorClassIdentifier: Assembly-CSharp::Survive.Items.WeaponDefinition
   displayName: Ametralladora
-  icon: {fileID: 21300000, guid: dc0cd2eb2bdaef449ac413df67a39a86, type: 3}
+  icon: {fileID: 21300000, guid: c8615f8af06bfca4eb1c190f469867e8, type: 3}
   damage: 22
   range: 120
   shotsPerSecond: 10

@@ -48,6 +48,21 @@ namespace Survive.Combat
         public MonoBehaviour CurrentInteractable => interactableTarget;
         public bool HasTarget => interactableTarget != null;
         public float InteractionDistance => interactionDistance;
+        public string CurrentPrompt
+        {
+            get
+            {
+                if (interactableTarget == null) return "";
+                if (interactableTarget is IPlayerInteractionPrompt contextual) return contextual.GetInteractionPrompt(gameObject);
+                if (interactableTarget is IWorldInteractable generic) return generic.InteractionPrompt;
+                if (weaponInventory != null && !weaponInventory.HasFreeSlot && weaponInventory.GetHealing(weaponInventory.SelectedIndex) != null)
+                    return "INVENTARIO LLENO · Seleccioná un arma para reemplazar";
+                string action = weaponInventory != null
+                    ? weaponInventory.HasFreeSlot ? "[E] Guardar arma" : $"[E] Reemplazar slot {weaponInventory.SelectedIndex + 1}"
+                    : weaponController != null && weaponController.EquippedWeapon != null ? swapPromptMessage : promptMessage;
+                return action + " · " + ((WeaponItem)interactableTarget).DisplayName;
+            }
+        }
 
         private Transform OwnerRoot => movement != null ? movement.transform : transform;
 
@@ -149,6 +164,7 @@ namespace Survive.Combat
             float nearestWeapon = float.PositiveInfinity;
             float nearestObstacle = float.PositiveInfinity;
             MonoBehaviour candidate = null;
+            Collider candidateBody = null;
             for (int i = 0; i < count; i++)
             {
                 Collider collider = hits[i].collider;
@@ -168,6 +184,7 @@ namespace Survive.Combat
                     {
                         nearestWeapon = hits[i].distance;
                         candidate = target;
+                        candidateBody = collider;
                     }
                 }
                 else if (!collider.isTrigger)
@@ -176,8 +193,13 @@ namespace Survive.Combat
                 }
             }
 
+            // Las puertas pueden tener el pivote lejos de sus paneles. Para objetos
+            // interactuables se mide alcance sobre el collider que está bajo la mira.
+            Vector3 reachPoint = candidate is IWorldInteractable && candidateBody != null
+                ? candidateBody.ClosestPoint(playerOrigin)
+                : candidate != null ? candidate.transform.position : playerOrigin;
             if (candidate == null || nearestObstacle <= nearestWeapon
-                || (candidate.transform.position - playerOrigin).sqrMagnitude
+                || (reachPoint - playerOrigin).sqrMagnitude
                     > interactionDistance * interactionDistance)
             {
                 SetTarget(null);
@@ -186,8 +208,8 @@ namespace Survive.Combat
 
             // El trigger puede sobresalir de una pared y la cámara puede mirar alrededor de una esquina.
             Vector3 targetPosition = candidate.transform.position;
-            if (candidate is IWorldInteractable && candidate.TryGetComponent(out Collider targetBody))
-                targetPosition = targetBody.bounds.center;
+            if (candidate is IWorldInteractable && candidateBody != null)
+                targetPosition = candidateBody.bounds.center;
             if (!HasClearPath(ray.origin, targetPosition, candidate)
                 || !HasClearPath(playerOrigin, targetPosition, candidate))
             {
@@ -246,7 +268,7 @@ namespace Survive.Combat
             {
                 Collider collider = overlaps[i];
                 if (collider != null && !IsOwnCollider(collider)
-                    && !collider.transform.IsChildOf(target.transform))
+                    && !IsTargetCollider(collider, target))
                     return false;
             }
 
@@ -259,10 +281,16 @@ namespace Survive.Combat
             {
                 Collider collider = hits[i].collider;
                 if (collider != null && !IsOwnCollider(collider)
-                    && !collider.transform.IsChildOf(target.transform))
+                    && !IsTargetCollider(collider, target))
                     return false;
             }
             return true;
+        }
+
+        private static bool IsTargetCollider(Collider collider, MonoBehaviour target)
+        {
+            return collider.transform.IsChildOf(target.transform)
+                || target is IWorldInteractionColliderGroup group && group.OwnsCollider(collider);
         }
 
         private void SetTarget(MonoBehaviour target)
@@ -280,13 +308,7 @@ namespace Survive.Combat
                 promptText.enabled = visible;
                 if (visible)
                 {
-                    string action = weaponInventory != null
-                        ? weaponInventory.HasFreeSlot ? "[E] Guardar arma"
-                            : $"[E] Reemplazar slot {weaponInventory.SelectedIndex + 1}"
-                        : weaponController != null && weaponController.EquippedWeapon != null
-                            ? swapPromptMessage : promptMessage;
-                    promptText.text = target is IWorldInteractable generic ? generic.InteractionPrompt
-                        : action + " · " + ((WeaponItem)target).DisplayName;
+                    promptText.text = CurrentPrompt;
                 }
             }
         }

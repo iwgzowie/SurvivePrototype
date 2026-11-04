@@ -35,6 +35,9 @@ namespace Survive.Character
         private CharacterProfile draft;
         private Func<CharacterProfile, string> confirm;
         private MenuBehaviour owner;
+        private SceneCharacterPreview scenePreview;
+        private Action onClosed;
+        private string confirmLabel;
         private Transform content;
         private TMP_Text errorText;
         private TMP_InputField nameInput;
@@ -67,7 +70,8 @@ namespace Survive.Character
         public CharacterProfile Draft => draft;
 
         public static CharacterCreationMenu Open(MenuBehaviour owner, SidekickCharacterCatalog catalog,
-            Func<CharacterProfile, string> onConfirm)
+            Func<CharacterProfile, string> onConfirm, SceneCharacterPreview scenePreview = null,
+            Action onClosed = null, string confirmLabel = "CREAR Y JUGAR")
         {
             if (owner == null) throw new ArgumentNullException(nameof(owner));
             if (catalog == null) throw new ArgumentNullException(nameof(catalog));
@@ -78,10 +82,13 @@ namespace Survive.Character
             menu.owner = owner;
             menu.catalog = catalog;
             menu.confirm = onConfirm;
+            menu.scenePreview = scenePreview;
+            menu.onClosed = onClosed;
+            menu.confirmLabel = confirmLabel;
             menu.IsOpen = true;
             try
             {
-                menu.draft = catalog.CreateDefault();
+                menu.draft = scenePreview != null ? scenePreview.LoadProfile().Clone() : catalog.CreateDefault();
                 menu.Build();
                 return menu;
             }
@@ -110,8 +117,8 @@ namespace Survive.Character
             }
             previouslySelected = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
 
-            // El estudio 3D se dibuja como una cámara de escena completa; se ocultan las
-            // capas UI del menú original para que no queden visibles bajo el creador.
+            // Se conservan las cámaras del escenario al usar su maniquí. Sólo la UI
+            // anterior se oculta para que no quede visible bajo el formulario.
             foreach (Canvas existingCanvas in FindObjectsByType<Canvas>(FindObjectsSortMode.None))
             {
                 previousCanvases[existingCanvas] = existingCanvas.enabled;
@@ -146,7 +153,7 @@ namespace Survive.Character
             var panelImage = sidePanel.gameObject.AddComponent<Image>();
             panelImage.color = Panel;
             panelImage.raycastTarget = true;
-            var title = Label("CREÁ TU PERSONAJE", sidePanel, 26, Color.white, 42);
+            var title = Label(scenePreview != null ? "PERSONALIZÁ TU AGENTE" : "CREÁ TU PERSONAJE", sidePanel, 26, Color.white, 42);
             Place(title.rectTransform, new Vector2(.045f, .925f), new Vector2(.96f, .99f));
             title.alignment = TextAlignmentOptions.MidlineLeft;
             var subtitle = Label("Elegí tu apariencia antes de sobrevivir.", sidePanel, 14, Muted, 32);
@@ -193,7 +200,7 @@ namespace Survive.Character
             Place(errorText.rectTransform, new Vector2(.045f, .105f), new Vector2(.955f, .155f));
             errorText.textWrappingMode = TextWrappingModes.Normal;
             Button("Volver", Rect("Cancel", sidePanel, new Vector2(.035f, .035f), new Vector2(.40f, .095f)), Close, 46);
-            confirmButton = Button("CREAR Y JUGAR", Rect("Confirm", sidePanel, new Vector2(.425f, .035f), new Vector2(.965f, .095f)), Confirm, 46, true);
+            confirmButton = Button(confirmLabel, Rect("Confirm", sidePanel, new Vector2(.425f, .035f), new Vector2(.965f, .095f)), Confirm, 46, true);
 
             TMP_Text stageCaption = Label("VISTA 3D  ·  ARRASTRÁ PARA GIRAR", transform, 15, Color.white, 32);
             Place(stageCaption.rectTransform, new Vector2(.035f, .045f), new Vector2(.35f, .095f));
@@ -394,6 +401,11 @@ namespace Survive.Character
         private void RefreshPreview()
         {
             errorText.text = "";
+            if (scenePreview != null)
+            {
+                if (!scenePreview.Apply(draft)) errorText.text = "No se pudo mostrar esta combinación. Elegí otra pieza.";
+                return;
+            }
             if (appearance != null && !appearance.Apply(draft))
                 errorText.text = "No se pudo mostrar esta combinación. Elegí otra pieza antes de crear el perfil.";
             AlignPreviewFeet();
@@ -403,6 +415,11 @@ namespace Survive.Character
 
         private void CreatePreview()
         {
+            if (scenePreview != null)
+            {
+                RefreshPreview();
+                return;
+            }
             if (catalog.previewRig == null)
             {
                 errorText.text = "Falta el rig de vista previa. Ejecutá la integración Sidekick desde el Editor.";
@@ -613,6 +630,7 @@ namespace Survive.Character
         private void Rotate(float degrees)
         {
             rotation += degrees;
+            if (scenePreview != null) { scenePreview.Rotate(rotation); return; }
             if (previewRig != null) previewRig.transform.localRotation = Quaternion.Euler(0, rotation, 0);
         }
 
@@ -654,7 +672,7 @@ namespace Survive.Character
         private void Update()
         {
             if (!IsOpen) return;
-            if (Screen.width != previewScreenWidth || Screen.height != previewScreenHeight) FramePreview();
+            if (scenePreview == null && (Screen.width != previewScreenWidth || Screen.height != previewScreenHeight)) FramePreview();
             if ((Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
                 || (Gamepad.current != null && Gamepad.current.buttonEast.wasPressedThisFrame))
             {
@@ -681,6 +699,9 @@ namespace Survive.Character
             if (EventSystem.current != null && previouslySelected != null)
                 EventSystem.current.SetSelectedGameObject(previouslySelected);
             CleanupPreview();
+            Action closed = onClosed;
+            onClosed = null;
+            closed?.Invoke();
             Destroy(gameObject);
         }
 
@@ -708,6 +729,11 @@ namespace Survive.Character
 
         private void CleanupPreview()
         {
+            if (scenePreview != null)
+            {
+                scenePreview.RestoreSavedAppearance();
+                scenePreview = null;
+            }
             foreach (var previous in previousCameraMasks)
                 if (previous.Key != null) previous.Key.cullingMask = previous.Value;
             previousCameraMasks.Clear();

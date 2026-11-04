@@ -16,6 +16,9 @@ public class StormLightingSkybox : MonoBehaviour // Controla la iluminación de 
     private Quaternion rotacionInicial;
     private float tiempoTranscurrido = 0f;
 
+    public float NightProgress { get; private set; }
+    public bool IsTransitioning => nocheActivada;
+
     private bool nocheActivada = false;
 
     private void Start()
@@ -32,16 +35,17 @@ public class StormLightingSkybox : MonoBehaviour // Controla la iluminación de 
 
     private void Update()
     {
-        if (!nocheActivada)
+        if (!nocheActivada || luzSol == null)
         {
             return;
         }
 
         tiempoTranscurrido += Time.deltaTime;
 
-        float progreso = tiempoTranscurrido / tiempoTransicion;
+        float progreso = tiempoTransicion > 0f ? tiempoTranscurrido / tiempoTransicion : 1f;
 
         progreso = Mathf.Clamp01(progreso);
+        NightProgress = progreso;
 
         luzSol.intensity = Mathf.Lerp(
             intensidadInicial,
@@ -95,7 +99,7 @@ public class StormLightingSkybox : MonoBehaviour // Controla la iluminación de 
 
     public void ActivarNoche()
     {
-        if (luzSol == null)
+        if (luzSol == null || nocheActivada || NightProgress >= 1f)
         {
             return;
         }

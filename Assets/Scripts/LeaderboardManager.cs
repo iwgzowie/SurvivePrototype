@@ -1,133 +1,75 @@
+using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Linq;
 using UnityEngine;
 
-
-[System.Serializable]
+[Serializable]
 public class ScoreEntry
 {
     public string playerName;
     public int score;
-
-    public ScoreEntry(string name, int newScore)
-    {
-        playerName = name;
-        score = newScore;
-    }
+    public ScoreEntry(string name, int newScore) { playerName = name; score = newScore; }
 }
-
 public class LeaderboardManager : MonoBehaviour
 {
-    [SerializeField] protected int maxEntries = 5;
-
-
+    [SerializeField, Range(1, 10)] protected int maxEntries = 10;
     [SerializeField] private List<ScoreEntry> entries = new List<ScoreEntry>();
-
-    protected virtual void Awake()
+#if UNITY_EDITOR
+    public static string StoragePrefixOverride { get; set; }
+#endif
+    private static string Prefix
     {
-        LoadScores();
+        get
+        {
+#if UNITY_EDITOR
+            if (!string.IsNullOrEmpty(StoragePrefixOverride)) return StoragePrefixOverride;
+#endif
+            return "LB_";
+        }
     }
-
-    public bool IsHighScore(int newScore)
-    {
-        if (newScore <= 0)
-            return false;
-
-        if (entries.Count < maxEntries)
-            return true;
-
-        int lowestTopScore = entries[entries.Count - 1].score;
-        return newScore > lowestTopScore;
-    }
-
+    public int MaxEntries => Mathf.Clamp(maxEntries, 1, 10);
+    protected virtual void Awake() => LoadScores();
+    public bool IsHighScore(int score) => score > 0 && (entries.Count < MaxEntries || score > entries[entries.Count - 1].score);
     public void AddScore(string playerName, int score)
     {
-        entries.Add(new ScoreEntry(playerName, score));
-
-        // Ordena de mayor a menor
-        entries.Sort((a, b) => b.score.CompareTo(a.score));
-
-        
-        if (entries.Count > maxEntries)
-        {
-            entries.RemoveRange(maxEntries, entries.Count - maxEntries);
-        }
-
-        SaveScores();
+        if (score <= 0) return;
+        string name = string.IsNullOrWhiteSpace(playerName) ? "AAA" : playerName.Trim().ToUpperInvariant();
+        if (name.Length > 24) name = name.Substring(0, 24);
+        entries.Add(new ScoreEntry(name, score)); Normalize(); SaveScores();
     }
-
-    public List<ScoreEntry> GetScores()
+    public List<ScoreEntry> GetScores() => new List<ScoreEntry>(entries);
+    private void Normalize()
     {
-        return entries;
+        entries = entries.Where(e => e != null && e.score >= 0).OrderByDescending(e => e.score).Take(MaxEntries).ToList();
     }
-
     private void SaveScores()
     {
-        
-        PlayerPrefs.SetInt("LB_Count", entries.Count);
-
-       
+        int previous = Mathf.Clamp(PlayerPrefs.GetInt(Prefix + "Count", 0), 0, 1000);
+        PlayerPrefs.SetInt(Prefix + "Count", entries.Count);
         for (int i = 0; i < entries.Count; i++)
         {
-            PlayerPrefs.SetString("LB_Name_" + i, entries[i].playerName);
-            PlayerPrefs.SetInt("LB_Score_" + i, entries[i].score);
+            PlayerPrefs.SetString(Prefix + "Name_" + i, entries[i].playerName);
+            PlayerPrefs.SetInt(Prefix + "Score_" + i, entries[i].score);
         }
-
-        
+        for (int i = entries.Count; i < previous; i++) { PlayerPrefs.DeleteKey(Prefix + "Name_" + i); PlayerPrefs.DeleteKey(Prefix + "Score_" + i); }
         PlayerPrefs.Save();
     }
-
     private void LoadScores()
     {
         entries.Clear();
-
-        
-        int count = PlayerPrefs.GetInt("LB_Count", 0);
-
-        if (count == 0)
+        if (!PlayerPrefs.HasKey(Prefix + "Count"))
         {
-            
-            CreateDefaultScores();
+            string[] names = { "DEV", "PRO", "CPU", "BOT", "MAX", "LEO", "ANA", "SOL", "LUZ", "NEW" };
+            for (int i = 0; i < names.Length; i++) entries.Add(new ScoreEntry(names[i], 5000 - i * 500));
+            Normalize(); SaveScores(); return;
         }
-        else
-        {
-            
-            for (int i = 0; i < count; i++)
-            {
-                string name = PlayerPrefs.GetString("LB_Name_" + i, "AAA");
-                int score = PlayerPrefs.GetInt("LB_Score_" + i, 0);
-
-                entries.Add(new ScoreEntry(name, score));
-            }
-        }
+        int count = Mathf.Clamp(PlayerPrefs.GetInt(Prefix + "Count", 0), 0, 1000);
+        for (int i = 0; i < count; i++) entries.Add(new ScoreEntry(PlayerPrefs.GetString(Prefix + "Name_" + i, "AAA"), PlayerPrefs.GetInt(Prefix + "Score_" + i, 0)));
+        Normalize();
     }
-
-    private void CreateDefaultScores()
-    {
-        
-        entries.Add(new ScoreEntry("DEV", 5000));
-        entries.Add(new ScoreEntry("PRO", 4500));
-        entries.Add(new ScoreEntry("CPU", 4000));
-        entries.Add(new ScoreEntry("BOT", 3500));
-        entries.Add(new ScoreEntry("MAX", 3000));
-        entries.Add(new ScoreEntry("LEO", 2500));
-        entries.Add(new ScoreEntry("ANA", 2000));
-        entries.Add(new ScoreEntry("SOL", 1500));
-        entries.Add(new ScoreEntry("LUZ", 1000));
-        entries.Add(new ScoreEntry("NEW", 500));
-
-        
-        entries.Sort((a, b) => b.score.CompareTo(a.score));
-
-        
-        SaveScores();
-    }
-
-
     public void ClearLeaderboard()
     {
-        entries.Clear();
-        PlayerPrefs.DeleteAll(); 
+        // Borrar la tabla nunca borra controles, opciones u otros datos de PlayerPrefs.
+        entries.Clear(); SaveScores();
     }
 }
-

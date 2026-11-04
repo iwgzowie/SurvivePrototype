@@ -22,7 +22,10 @@ public class EnemyBaseController : MonoBehaviour
     [SerializeField] protected GameObject weaponEquip;
 
     // Estadísticas Base
-    [SerializeField] protected float moveSpeed = 3.5f;
+    [SerializeField, Min(.01f), InspectorName("Velocidad base (m/s)"), Tooltip("La velocidad de la instancia es este valor × Speed Multiplier de la plantilla × aumento por oleada del EnemySpawner.")] protected float moveSpeed = 3.5f;
+    private bool pursuePlayer;
+    public float MoveSpeed => moveSpeed;
+    public void PursuePlayer() => pursuePlayer = true;
     [SerializeField] protected float attackDamage = 10f;
     [SerializeField] protected float attackRange = 2f;
     [SerializeField] protected float attackCooldown = 1.5f;
@@ -163,7 +166,7 @@ public class EnemyBaseController : MonoBehaviour
         {
             currentState = EnemyState.Attack;
         }
-        else if (distanceToPlayer <= Mathf.Max(detectionRange, attackRange))
+        else if (pursuePlayer || distanceToPlayer <= Mathf.Max(detectionRange, attackRange))
         {
             currentState = EnemyState.Chasing;
         }
@@ -187,7 +190,7 @@ public class EnemyBaseController : MonoBehaviour
         randomDirection += center;
 
         NavMeshHit hit;
-        if (NavMesh.SamplePosition(randomDirection, out hit, radius, NavMesh.AllAreas))
+        if (NavMesh.SamplePosition(randomDirection, out hit, radius, EnemyNavigation.Filter(agent)))
         {
             return hit.position;
         }

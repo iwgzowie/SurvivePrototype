@@ -229,6 +229,23 @@ namespace Survive.Editor
             return report;
         }
 
+        // Comparte la resolución de cargas y fuentes con la limpieza general de contenido.
+        public static string[] RequiredContentRoots(out string[] blockers)
+        {
+            var report = new AuditReport();
+            var roots = new HashSet<string>(Paths);
+            string[] assets = AssetDatabase.GetAllAssetPaths().Where(path => ValidAssetPath(path) && !AssetDatabase.IsValidFolder(path)).ToArray();
+            AddCodeBindings(assets, roots, report);
+            AddRequiredEditorSources(roots, report);
+            AddAddressables(roots, report);
+            foreach (UObject asset in PlayerSettings.GetPreloadedAssets())
+                if (asset != null) AddRoot(roots, AssetDatabase.GetAssetPath(asset), "preloaded", report);
+            foreach (string settings in Directory.GetFiles("ProjectSettings", "*.asset"))
+                AddGuidReferences(File.ReadAllText(settings), roots, "settings", report);
+            blockers = report.blockingIssues.ToArray();
+            return roots.ToArray();
+        }
+
         static void AddCodeBindings(string[] assets, HashSet<string> roots, AuditReport report)
         {
             foreach (string script in assets.Where(path => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)))

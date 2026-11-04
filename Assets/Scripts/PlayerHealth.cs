@@ -24,7 +24,10 @@ public class PlayerHealth : MonoBehaviour
 
     public void Heal(float amount)
     {
+        if (IsDead || amount <= 0 || float.IsNaN(amount) || float.IsInfinity(amount)) return;
+        float previous = currentHealth;
         currentHealth = Mathf.Min(currentHealth + amount, maxHealth);
+        if (currentHealth != previous) OnHealthChanged?.Invoke(currentHealth, maxHealth);
 
     }
 

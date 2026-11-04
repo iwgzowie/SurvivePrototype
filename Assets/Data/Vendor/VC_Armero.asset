@@ -15,28 +15,56 @@ MonoBehaviour:
   offers:
   - weaponPrefab: {fileID: 5103862698066891918, guid: d051b15550aea9145aa7d570330820f4, type: 3}
     turret: {fileID: 0}
+    explosiveMagazine: {fileID: 0}
+    commonAmmo: {fileID: 0}
     price: 50
   - weaponPrefab: {fileID: 2894089573441408505, guid: 5cd93793539b1f141b1cd9598bf79700, type: 3}
     turret: {fileID: 0}
+    explosiveMagazine: {fileID: 0}
+    commonAmmo: {fileID: 0}
     price: 90
   - weaponPrefab: {fileID: 9169914220147214049, guid: 864ec1b7eaefcf64782844e25350182c, type: 3}
     turret: {fileID: 0}
+    explosiveMagazine: {fileID: 0}
+    commonAmmo: {fileID: 0}
     price: 120
   - weaponPrefab: {fileID: 2930655690489185222, guid: e9ffcbd27a78ef946bd202fe1651b096, type: 3}
     turret: {fileID: 0}
+    explosiveMagazine: {fileID: 0}
+    commonAmmo: {fileID: 0}
     price: 160
   - weaponPrefab: {fileID: 6155970095165669841, guid: 4f390c2e0fa21e14b843a52e24fd531a, type: 3}
     turret: {fileID: 0}
+    explosiveMagazine: {fileID: 0}
+    commonAmmo: {fileID: 0}
     price: 140
   - weaponPrefab: {fileID: 7829916266761274193, guid: dbf6e92dd68b2ec4a970abc1c8577ade, type: 3}
     turret: {fileID: 0}
+    explosiveMagazine: {fileID: 0}
+    commonAmmo: {fileID: 0}
     price: 180
   - weaponPrefab: {fileID: 5039536611798609951, guid: 7c3bf55b6c977904bad4d1d59cf68e0c, type: 3}
     turret: {fileID: 0}
+    explosiveMagazine: {fileID: 0}
+    commonAmmo: {fileID: 0}
     price: 240
   - weaponPrefab: {fileID: 4111098649843639118, guid: 7e7ffe5b1c21efa45b1f75a91601c553, type: 3}
     turret: {fileID: 0}
+    explosiveMagazine: {fileID: 0}
+    commonAmmo: {fileID: 0}
     price: 220
   - weaponPrefab: {fileID: 0}
     turret: {fileID: 11400000, guid: 577d8e8177c5e4f4899becd1bdf9fa1e, type: 2}
+    explosiveMagazine: {fileID: 0}
+    commonAmmo: {fileID: 0}
     price: 150
+  - weaponPrefab: {fileID: 0}
+    turret: {fileID: 0}
+    explosiveMagazine: {fileID: 11400000, guid: 3ff62a5f493bf4449b64e4a8592c6742, type: 2}
+    commonAmmo: {fileID: 0}
+    price: 90
+  - weaponPrefab: {fileID: 0}
+    turret: {fileID: 0}
+    explosiveMagazine: {fileID: 0}
+    commonAmmo: {fileID: 11400000, guid: 310ee897a7e350048a4677877d9b72eb, type: 2}
+    price: 30

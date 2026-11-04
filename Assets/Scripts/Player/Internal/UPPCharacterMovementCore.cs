@@ -122,7 +122,7 @@ namespace UPP.ThirdPersonController.Internal
         public float StoppingTimeOnStepPosition = 0.5f;
 
         [Header("Apuntado direccional")]
-        public PressAimMode AimMode;
+        public PressAimMode AimMode = PressAimMode.HoldToAim;
         public float FireModeWalkSpeed = 0.5f;
         public float FireModeRunSpeed = 1.3f;
         public float FireModeCrouchSpeed = 0.5f;

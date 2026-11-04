@@ -485,7 +485,9 @@ namespace Survive.Combat
             AlignWeapon(target);
             Vector3 muzzlePosition = equippedWeapon.Muzzle.position;
             float range = Mathf.Max(0.01f, equippedWeapon.Range);
+            ExplosiveAmmoDefinition explosive = equippedWeapon.LoadedExplosiveAmmo;
             if (!equippedWeapon.TryConsumeRound()) return false;
+            GameStatsManager.Instance?.RegisterShot();
             nextShotTime = Time.time + 1f / Mathf.Max(0.01f, equippedWeapon.ShotsPerSecond);
             autoReloadReadyAt = Time.time + 0.18f;
             crosshairKick = Mathf.Min(10f, crosshairKick + 2f);
@@ -517,6 +519,7 @@ namespace Survive.Combat
             {
                 equippedWeapon.ShowShot(muzzlePosition, nearObstruction.point, true);
                 equippedWeapon.ShowImpact(nearObstruction);
+                if (explosive != null && ExplosiveRoundImpact.Detonate(nearObstruction, explosive, OwnerRoot)) GameStatsManager.Instance?.RegisterHit();
                 ShotFired?.Invoke(equippedWeapon);
                 return true;
             }
@@ -547,8 +550,20 @@ namespace Survive.Combat
             }
             // Resolver toda la geometría antes del daño evita atravesar un enemigo que muere
             // y desactiva sus colliders con el primer perdigón del mismo disparo.
+            bool hitEnemy = false;
             for (int pellet = 0; pellet < pelletCount; pellet++)
-                if (pelletHits[pellet].collider != null) ApplyDamage(pelletHits[pellet]);
+                if (pelletHits[pellet].collider != null)
+                {
+                    if (explosive != null)
+                    {
+                        hitEnemy = ExplosiveRoundImpact.Detonate(pelletHits[pellet], explosive, OwnerRoot);
+                        hitMarkerEndsAt = Time.unscaledTime + .12f; break;
+                    }
+                    var hitHealth = pelletHits[pellet].collider.GetComponentInParent<EnemyHealth>();
+                    if (hitHealth != null && !hitHealth.IsDead) hitEnemy = true;
+                    ApplyDamage(pelletHits[pellet]);
+                }
+            if (hitEnemy) GameStatsManager.Instance?.RegisterHit();
             ShotFired?.Invoke(equippedWeapon);
             return true;
         }
@@ -767,7 +782,7 @@ namespace Survive.Combat
             if (enemyHealth != null)
             {
                 if (!enemyHealth.IsDead) hitMarkerEndsAt = Time.unscaledTime + 0.12f;
-                enemyHealth.TakeDamage(equippedWeapon.Damage, hit.point);
+                enemyHealth.TakeDamage(equippedWeapon.Damage, hit.point, OwnerRoot.gameObject);
             }
         }
 

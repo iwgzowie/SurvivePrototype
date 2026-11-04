@@ -17,9 +17,14 @@ public class MenuBehaviour : MonoBehaviour
     [SerializeField] private bool isMainMenu;
 
     [Header("Escenas")]
-    [SerializeField] private string gameplayScene = "Level 1";
+    [SerializeField] private string gameplayScene = "Level 2";
     [SerializeField] private string mainMenuScene = "SceneAlejandro";
 
+    [Header("Agente del escenario")]
+    [SerializeField] private SceneCharacterPreview agentPreview;
+    [SerializeField] private CameraSwitch agentCameraSwitch;
+
+    [SerializeField] private Survive.UI.SyntyResultsUI resultsUi;
     private bool sceneLoading;
     private bool waitForPointerRelease;
     private float timeScaleBeforePause = 1f;
@@ -44,13 +49,16 @@ public class MenuBehaviour : MonoBehaviour
 
     private void Update()
     {
-        if (sceneLoading || isMainMenu || IsFinished || container == null)
-        {
-            return;
-        }
-
+        if (sceneLoading) return;
         bool wantsPause = Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
         wantsPause |= Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame;
+        if (resultsUi != null && resultsUi.IsLeaderboardOpen)
+        {
+            if (wantsPause) resultsUi.CloseLeaderboard();
+            return;
+        }
+        if (isMainMenu || IsFinished || container == null) return;
+
         if (wantsPause)
         {
             foreach (Survive.Economy.PlayerVendorController shop in FindObjectsByType<Survive.Economy.PlayerVendorController>(FindObjectsSortMode.None))
@@ -109,20 +117,37 @@ public class MenuBehaviour : MonoBehaviour
             }
             if (!CharacterProfileStore.TryLoad(out CharacterProfile profile) || !catalog.Validate(profile, out _))
             {
-                characterCreation = CharacterCreationMenu.Open(this, catalog, ConfirmCharacter);
+                OpenCharacterCreator(catalog, true);
                 return;
             }
         }
         ChangeScene(gameplayScene);
     }
 
-    private string ConfirmCharacter(CharacterProfile profile)
+    public void OpenAgentCreator()
+    {
+        if (!isMainMenu || sceneLoading || IsCreatingCharacter) return;
+        SidekickCharacterCatalog catalog = SidekickCharacterCatalog.Load();
+        if (catalog == null) { Debug.LogError("Falta el catálogo Sidekick del agente.", this); return; }
+        OpenCharacterCreator(catalog, false);
+    }
+
+    private void OpenCharacterCreator(SidekickCharacterCatalog catalog, bool playAfterSave)
+    {
+        agentCameraSwitch?.FocusAgent(agentPreview != null ? agentPreview.transform : null);
+        characterCreation = CharacterCreationMenu.Open(this, catalog,
+            profile => SaveCharacter(profile, playAfterSave), agentPreview,
+            () => { if (agentCameraSwitch != null) agentCameraSwitch.ShowMainMenu(); },
+            playAfterSave ? "CREAR Y JUGAR" : "GUARDAR AGENTE");
+    }
+
+    private string SaveCharacter(CharacterProfile profile, bool playAfterSave)
     {
         SidekickCharacterCatalog catalog = SidekickCharacterCatalog.Load();
         if (catalog == null) return "No se pudo cargar el catálogo de personajes.";
         if (!catalog.Validate(profile, out string error)) return error;
         if (!CharacterProfileStore.TrySave(profile, out error)) return error;
-        StartCoroutine(EnterGameAfterCreation());
+        if (playAfterSave) StartCoroutine(EnterGameAfterCreation());
         return null;
     }
 
@@ -177,6 +202,7 @@ public class MenuBehaviour : MonoBehaviour
         SetPanel(gameOverContainer, true);
         Time.timeScale = 0f;
         ApplyCursor();
+        resultsUi?.ShowDefeat();
     }
 
     /// <summary>Cierra la partida al completar el objetivo, sin reemplazar una derrota previa.</summary>
@@ -219,6 +245,7 @@ public class MenuBehaviour : MonoBehaviour
             return;
         }
 
+        GameStatsManager.Instance?.FinalizeGameStats();
         sceneLoading = true;
         // La nueva escena siempre comienza fuera de la pausa o del final de partida anterior.
         Time.timeScale = 1f;

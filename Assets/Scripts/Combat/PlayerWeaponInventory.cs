@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 
 namespace Survive.Combat
 {
-    /// <summary>Seis posiciones estables que conservan las instancias y la munición de cada arma.</summary>
+    /// <summary>Seis posiciones compartidas por armas y pilas de consumibles de curación.</summary>
     [DefaultExecutionOrder(1025)]
     [DisallowMultipleComponent]
     [RequireComponent(typeof(PlayerWeaponController))]
@@ -24,6 +24,9 @@ namespace Survive.Combat
         [SerializeField] private InputAction nextSlotAction = new InputAction("NextWeaponSlot", InputActionType.Button, "<Gamepad>/dpad/right");
 
         private readonly WeaponItem[] slots = new WeaponItem[Capacity];
+        private readonly HealingDefinition[] healing = new HealingDefinition[Capacity];
+        private readonly int[] healingCounts = new int[Capacity];
+        private InputAction useHealingAction, dropHealingAction;
         private int selectedIndex;
         private bool changingSelection;
         private WeaponItem startingWeaponToEquip;
@@ -32,6 +35,9 @@ namespace Survive.Combat
         public int SlotCount => Capacity;
         public int SelectedIndex => selectedIndex;
         public Transform StorageRoot => inventoryStorage;
+        public HealingDefinition GetHealing(int index) => index >= 0 && index < Capacity && healingCounts[index] > 0 ? healing[index] : null;
+        public int GetHealingCount(int index) => GetHealing(index) != null ? healingCounts[index] : 0;
+        public bool IsOccupied(int index) => GetWeapon(index) != null || GetHealing(index) != null;
         public bool CanManageInventory => isActiveAndEnabled && !changingSelection
             && weaponController != null && weaponController.CanChangeWeaponSelection;
         public bool HasFreeSlot
@@ -39,7 +45,7 @@ namespace Survive.Combat
             get
             {
                 for (int index = 0; index < Capacity; index++)
-                    if (GetWeapon(index) == null) return true;
+                    if (!IsOccupied(index)) return true;
                 return false;
             }
         }
@@ -104,6 +110,10 @@ namespace Survive.Combat
             scrollAction.Enable();
             previousSlotAction.Enable();
             nextSlotAction.Enable();
+            useHealingAction ??= new InputAction("UseHealing", InputActionType.Button, "<Mouse>/leftButton");
+            if (useHealingAction.bindings.Count == 1) useHealingAction.AddBinding("<Gamepad>/rightTrigger");
+            dropHealingAction ??= new InputAction("DropHealing", InputActionType.Button, "<Keyboard>/g");
+            useHealingAction.Enable(); dropHealingAction.Enable();
             Changed?.Invoke();
         }
 
@@ -114,6 +124,7 @@ namespace Survive.Combat
             scrollAction?.Disable();
             previousSlotAction?.Disable();
             nextSlotAction?.Disable();
+            useHealingAction?.Disable(); dropHealingAction?.Disable();
             Changed?.Invoke();
         }
 
@@ -124,6 +135,7 @@ namespace Survive.Combat
             scrollAction?.Dispose();
             previousSlotAction?.Dispose();
             nextSlotAction?.Dispose();
+            useHealingAction?.Dispose(); dropHealingAction?.Dispose();
         }
 
         private void LateUpdate()
@@ -143,6 +155,11 @@ namespace Survive.Combat
                 if (slotActions[index].WasPressedThisFrame()) { TrySelect(index); return; }
             if (previousSlotAction.WasPressedThisFrame()) { TryCycle(-1); return; }
             if (nextSlotAction.WasPressedThisFrame()) { TryCycle(1); return; }
+            if (GetHealing(selectedIndex) != null)
+            {
+                if (useHealingAction.WasPressedThisFrame()) TryUseSelectedHealing();
+                if (dropHealingAction.WasPressedThisFrame()) TryDropSelected(transform.position + transform.forward * 1.2f, Quaternion.identity);
+            }
             float scroll = scrollAction.ReadValue<float>();
             if (Mathf.Abs(scroll) > .01f) TryCycle(scroll > 0f ? -1 : 1);
         }
@@ -176,7 +193,7 @@ namespace Survive.Combat
             PruneInvalidSlots();
             int destination = -1;
             for (int index = 0; index < Capacity; index++)
-                if (slots[index] == null) { destination = index; break; }
+                if (!IsOccupied(index)) { destination = index; break; }
             if (destination < 0 || !weapon.TryAttach(weaponController.WeaponOwnerRoot,
                     EnsureStorage(), Vector3.zero, Vector3.zero)) return false;
             slots[destination] = weapon;
@@ -193,9 +210,11 @@ namespace Survive.Combat
             PruneInvalidSlots();
             int destination = -1;
             for (int index = 0; index < Capacity; index++)
-                if (slots[index] == null) { destination = index; break; }
+                if (!IsOccupied(index)) { destination = index; break; }
             bool replacing = destination < 0;
             if (replacing) destination = selectedIndex;
+            // Para reemplazar un consumible se debe seleccionar otro espacio: nunca destruir curación por una recogida.
+            if (replacing && GetHealing(destination) != null) return false;
             WeaponItem replaced = slots[destination];
             int previousIndex = selectedIndex;
             Vector3 pickupPosition = weapon.transform.position;
@@ -246,7 +265,7 @@ namespace Survive.Combat
             for (int offset = 1; offset <= Capacity; offset++)
             {
                 int candidate = (selectedIndex + step * offset + Capacity * 2) % Capacity;
-                if (GetWeapon(candidate) == null) continue;
+                if (!IsOccupied(candidate)) continue;
                 return candidate != selectedIndex && TrySelect(candidate);
             }
             return false;
@@ -255,6 +274,14 @@ namespace Survive.Combat
         public bool TryDropSelected(Vector3 position, Quaternion rotation)
         {
             ResolveController();
+            if (CanManageInventory && GetHealing(selectedIndex) != null)
+            {
+                HealingDefinition definition = GetHealing(selectedIndex);
+                if (definition.worldPrefab == null) return false;
+                HealingPickup pickup = Instantiate(definition.worldPrefab, position, rotation);
+                pickup.Initialize(definition, healingCounts[selectedIndex]); pickup.PlaceInWorld(position, rotation);
+                healing[selectedIndex] = null; healingCounts[selectedIndex] = 0; Changed?.Invoke(); return true;
+            }
             if (!CanManageInventory || GetWeapon(selectedIndex) == null) return false;
             changingSelection = true;
             bool dropped;
@@ -279,6 +306,39 @@ namespace Survive.Combat
                 inventoryStorage.SetParent(owner, false);
             }
             return inventoryStorage;
+        }
+
+        public bool CanAddHealing(HealingDefinition definition, int count)
+        {
+            if (definition == null || count <= 0) return false;
+            long capacity = 0;
+            for (int i = 0; i < Capacity; i++)
+                if (GetHealing(i) == definition) capacity += Mathf.Max(0, definition.stackLimit - healingCounts[i]);
+                else if (!IsOccupied(i)) capacity += Mathf.Max(1, definition.stackLimit);
+            return count <= capacity;
+        }
+
+        public bool TryAddHealing(HealingDefinition definition, int count)
+        {
+            if (!CanManageInventory || !CanAddHealing(definition, count)) return false;
+            for (int pass = 0; pass < 2 && count > 0; pass++)
+                for (int i = 0; i < Capacity && count > 0; i++)
+                {
+                    if (pass == 0 ? GetHealing(i) != definition : IsOccupied(i)) continue;
+                    int added = Mathf.Min(count, Mathf.Max(1, definition.stackLimit) - healingCounts[i]);
+                    healing[i] = definition; healingCounts[i] += added; count -= added;
+                }
+            Changed?.Invoke(); return true;
+        }
+
+        public bool TryUseSelectedHealing()
+        {
+            HealingDefinition definition = GetHealing(selectedIndex); PlayerHealth health = GetComponent<PlayerHealth>();
+            if (!CanManageInventory || definition == null || health == null || health.IsDead
+                || health.CurrentHealth >= health.MaxHealth || definition.healing <= 0) return false;
+            health.Heal(definition.healing);
+            if (--healingCounts[selectedIndex] <= 0) healing[selectedIndex] = null;
+            Changed?.Invoke(); return true;
         }
 
         private bool PruneInvalidSlots()

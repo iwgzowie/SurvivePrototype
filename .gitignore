@@ -11,6 +11,10 @@
 # Get latest from https://github.com/github/gitignore/blob/main/Unity.gitignore
 #
 .utmp/
+# Local recovery documentation and generated performance-test metadata
+/Docs/Historial/
+/Assets/Resources/PerformanceTestRunInfo.json*
+/Assets/Resources/PerformanceTestRunSettings.json*
 /[Ll]ibrary/
 /[Tt]emp/
 /[Oo]bj/

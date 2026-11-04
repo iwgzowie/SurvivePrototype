@@ -1,96 +1,68 @@
+using System;
 using UnityEngine;
 
 public class GameStatsManager : MonoBehaviour
 {
     public static GameStatsManager Instance;
-
-    [Header("Métricas de Partida")]
-    public int enemiesKilled = 0;
+    [Header("Métricas de partida")]
+    public int enemiesKilled;
     public int waveReached = 1;
-    public float survivalTime = 0f;
-    public int combatScore = 0;
-    public int totalScore = 0;
-
-    [Header("Precisión y Combate")]
-    public int shotsFired = 0;
-    public int shotsHit = 0;
-    public int criticalHits = 0;
-
-    private bool isGameActive = false;
-
+    public float survivalTime;
+    public int combatScore;
+    public int totalScore;
+    [Header("Precisión y combate")]
+    public int shotsFired;
+    public int shotsHit;
+    public int criticalHits;
+    private bool isGameActive;
+    public bool IsGameActive => isGameActive;
+    public float Accuracy => shotsFired > 0 ? Mathf.Clamp01((float)shotsHit / shotsFired) * 100 : 0;
+    public event Action Changed;
+    public static GameStatsManager GetOrCreate()
+    {
+        if (Instance == null) new GameObject("GameStatsManager").AddComponent<GameStatsManager>();
+        return Instance;
+    }
     protected virtual void Awake()
     {
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject); 
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
+        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+        Instance = this; DontDestroyOnLoad(gameObject);
     }
-
-    //Reiniciar estadísticas al comenzar una partida
+    protected virtual void OnDestroy() { if (Instance == this) Instance = null; }
     public void ResetStats()
     {
-        enemiesKilled = 0;
-        waveReached = 1;
-        survivalTime = 0f;
-        combatScore = 0;
-        totalScore = 0;
-        shotsFired = 0;
-        shotsHit = 0;
-        criticalHits = 0;
-        isGameActive = true;
+        enemiesKilled = combatScore = totalScore = shotsFired = shotsHit = criticalHits = 0;
+        waveReached = 1; survivalTime = 0; isGameActive = true; RefreshScore();
     }
-
     protected virtual void Update()
     {
-        if (isGameActive)
-        {
-            survivalTime += Time.deltaTime;
-        }
+        if (!isGameActive) return;
+        survivalTime += Time.deltaTime; RefreshScore();
     }
-
-    // Registra enemigo eliminado
-    public void AddEnemyKill()
+    public void AddEnemyKill() => AddKill(100);
+    public void AddMinionKill() => AddKill(50);
+    public void AddBossKill() => AddKill(1000);
+    private void AddKill(int score)
     {
-        enemiesKilled++;
-        combatScore += 100;
-        totalScore = combatScore;
+        if (!isGameActive) return;
+        enemiesKilled = (int)Math.Min(int.MaxValue, (long)enemiesKilled + 1);
+        combatScore = (int)Math.Min(int.MaxValue, (long)combatScore + score); RefreshScore();
     }
-
-    public void AddMinionKill()
-    {
-        enemiesKilled++;
-        combatScore += 50;
-        totalScore = combatScore;
-    }
-
-    public void AddBossKill()
-    {
-        enemiesKilled++;
-        combatScore += 1000;
-        totalScore = combatScore;
-    }
-
+    public void RegisterShot() { if (isGameActive && shotsFired < int.MaxValue) shotsFired++; }
+    public void RegisterHit() { if (isGameActive && shotsHit < shotsFired) { shotsHit++; RefreshScore(); } }
     protected virtual int KillScore => combatScore;
     protected virtual int AccuracyBonus => 0;
-
-    // Calcula puntaje total y bonificaciones al llegar al Game Over
+    public int CalculateScore() => (int)Math.Min(int.MaxValue, Math.Max(0L,
+        (long)KillScore + (long)Mathf.Max(0, waveReached) * 250 + Mathf.RoundToInt(survivalTime * 5)
+        + (long)criticalHits * 50 + AccuracyBonus));
+    private void RefreshScore()
+    {
+        int score = CalculateScore(); if (score == totalScore) return;
+        totalScore = score; Changed?.Invoke();
+    }
     public void FinalizeGameStats()
     {
         if (!isGameActive) return;
-
-        isGameActive = false;
-
-        int criticalBonus = criticalHits * 50;
-
-        // Puntos base por enemigos, oleadas y tiempo
-        int timeAndWaveScore = (waveReached * 250) + Mathf.RoundToInt(survivalTime * 5);
-
-
-        totalScore = KillScore + timeAndWaveScore + criticalBonus + AccuracyBonus;
+        RefreshScore(); isGameActive = false;
     }
 }

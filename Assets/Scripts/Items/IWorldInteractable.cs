@@ -9,4 +9,16 @@ namespace Survive.Items
         bool CanInteract(GameObject player);
         bool Interact(GameObject player);
     }
+
+    /// <summary>Colliders de un mismo objeto lógico que no deben bloquear su propia interacción.</summary>
+    public interface IWorldInteractionColliderGroup
+    {
+        bool OwnsCollider(Collider collider);
+    }
+
+    /// <summary>Aviso que depende del inventario del jugador que está mirando el objeto.</summary>
+    public interface IPlayerInteractionPrompt
+    {
+        string GetInteractionPrompt(GameObject player);
+    }
 }

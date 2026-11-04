@@ -22,6 +22,8 @@ public class CoinPickup : MonoBehaviour
     private void Start()
     {
         startPosition = transform.position;
+        // El punto de aparición es la altura mínima: el balanceo no entierra el drop.
+        if (enableFloat) startPosition.y += floatAmplitude;
     }
 
     private void Update()

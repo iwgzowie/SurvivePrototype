@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3ab8b0e21972f634aba533d0c9becce7, type: 3}
+  m_Name: HD_Bandages
+  m_EditorClassIdentifier: Assembly-CSharp::Survive.Items.HealingDefinition
+  displayName: Vendas
+  icon: {fileID: 21300000, guid: c521d210e7adc434fa37cbda356931e4, type: 3}
+  healing: 35
+  stackLimit: 5
+  worldPrefab: {fileID: 1889815475693237730, guid: 641f0b302cd03934c850e0c699ec9bc7, type: 3}

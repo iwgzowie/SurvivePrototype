@@ -9,6 +9,12 @@ public class EnemyHealth : MonoBehaviour
     [SerializeField] private float maxHealth = 100f;
     [SerializeField] private float currentHealth;
 
+    [Header("Recompensa por baja")]
+    [SerializeField, Min(0), InspectorName("Monedas por baja"), Tooltip("Monedas directas al jugador que mata este enemigo. El boss usa BossBase > Direct Gold Reward.")] private int killCoins = 5;
+    [SerializeField] private AudioClip rewardSound;
+    public int KillCoins => killCoins;
+    public AudioClip RewardSound => rewardSound;
+
     //Death Settings
     [SerializeField] private float destroyDelay = 2.5f;
 
@@ -35,6 +41,11 @@ public class EnemyHealth : MonoBehaviour
     public float CurrentHealth => currentHealth;
 
     private bool isDead = false;
+    private bool explosiveDeath;
+    private Vector3 explosionOrigin;
+    private float explosionImpulse;
+    private bool bossMinion;
+    public void MarkAsBossMinion() => bossMinion = true;
     public bool IsDead => isDead;
     public bool HasHitParticleEffect => hitParticlePrefab != null;
 
@@ -61,9 +72,9 @@ public class EnemyHealth : MonoBehaviour
         
     }
 
-    public void TakeDamage(float amount, Vector3 hitPosition = default)
+    public void TakeDamage(float amount, Vector3 hitPosition = default, GameObject instigator = null)
     {
-        if (isDead) return;
+        if (isDead || amount <= 0 || float.IsNaN(amount) || float.IsInfinity(amount)) return;
 
         currentHealth -= amount;
         currentHealth = Mathf.Clamp(currentHealth, 0f, maxHealth);
@@ -77,8 +88,16 @@ public class EnemyHealth : MonoBehaviour
 
         if (currentHealth <= 0f)
         {
-            Die();
+            Die(instigator);
         }
+    }
+
+    public void TakeExplosiveDamage(float amount, Vector3 origin, float impulse, GameObject instigator = null)
+    {
+        if (isDead || amount <= 0 || float.IsNaN(amount) || float.IsInfinity(amount)) return;
+        explosiveDeath = amount >= currentHealth; explosionOrigin = origin; explosionImpulse = impulse;
+        TakeDamage(amount, origin, instigator);
+        if (!isDead) explosiveDeath = false;
     }
 
     private void TriggerHitFlash()
@@ -133,9 +152,23 @@ public class EnemyHealth : MonoBehaviour
         Destroy(effect, 1.5f);
     }
 
-    private void Die()
+    private void Die(GameObject instigator)
     {
+        if (isDead) return;
         isDead = true;
+        // Sólo la fuente del golpe letal cobra; las bajas de depuración no generan dinero.
+        var wallet = instigator != null ? instigator.GetComponentInParent<Survive.Economy.PlayerWallet>() : null;
+        if (wallet != null)
+        {
+            int reward = TryGetComponent<BossBase>(out var boss) ? boss.DirectGoldReward : killCoins;
+            if (reward > 0)
+            {
+                wallet.AddCoins(reward);
+                var feedback = wallet.GetComponent<Survive.Economy.PlayerRewardFeedback>();
+                if (feedback == null) feedback = wallet.gameObject.AddComponent<Survive.Economy.PlayerRewardFeedback>();
+                feedback.Play(rewardSound);
+            }
+        }
         OnDeath?.Invoke();
 
         if (deathSound != null)
@@ -150,7 +183,14 @@ public class EnemyHealth : MonoBehaviour
 
         // El Animator puede vivir en el modelo visual hijo del enemigo.
         Animator anim = GetComponentInChildren<Animator>();
-        if (anim != null && anim.runtimeAnimatorController != null)
+        bool ragdollActive = false;
+        if (explosiveDeath)
+        {
+            Survive.Combat.EnemyRagdoll ragdoll = GetComponent<Survive.Combat.EnemyRagdoll>();
+            if (ragdoll == null) ragdoll = gameObject.AddComponent<Survive.Combat.EnemyRagdoll>();
+            ragdollActive = ragdoll.TryActivate(explosionOrigin, explosionImpulse);
+        }
+        if (!ragdollActive && anim != null && anim.runtimeAnimatorController != null)
         {
             anim.ResetTrigger("Attack");
             anim.SetFloat("Speed", 0f);
@@ -158,11 +198,13 @@ public class EnemyHealth : MonoBehaviour
         }
 
         //  Destruir tras el retardo
-        Destroy(gameObject, destroyDelay);
+        Destroy(gameObject, ragdollActive ? Mathf.Max(8, destroyDelay) : destroyDelay);
 
-        if (GameStatsManager.Instance != null && GetComponent<BossBase>() == null)
+        if (GameStatsManager.Instance != null)
         {
-            GameStatsManager.Instance.AddEnemyKill();
+            if (GetComponent<BossBase>() != null) GameStatsManager.Instance.AddBossKill();
+            else if (bossMinion) GameStatsManager.Instance.AddMinionKill();
+            else GameStatsManager.Instance.AddEnemyKill();
         }
     }
     public void ApplyWaveMultipliers(float healthMult)

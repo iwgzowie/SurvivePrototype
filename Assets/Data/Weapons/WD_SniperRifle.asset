@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: WD_SniperRifle
   m_EditorClassIdentifier: Assembly-CSharp::Survive.Items.WeaponDefinition
   displayName: "Rifle de precisi\xF3n"
-  icon: {fileID: 21300000, guid: b7cfe541d8aea2d4e83e66311aa513dc, type: 3}
+  icon: {fileID: 21300000, guid: e381533706c738f44b5a58cea1142727, type: 3}
   damage: 110
   range: 240
   shotsPerSecond: 0.8

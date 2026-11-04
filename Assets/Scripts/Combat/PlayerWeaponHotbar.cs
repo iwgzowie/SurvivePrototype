@@ -79,6 +79,7 @@ namespace Survive.Combat
             for (int i = 0; i < inventory.SlotCount; i++)
             {
                 WeaponItem weapon = inventory.GetWeapon(i);
+                HealingDefinition healing = inventory.GetHealing(i);
                 bool selected = inventory.SelectedIndex == i;
                 if (slotBackgrounds != null && i < slotBackgrounds.Length && slotBackgrounds[i] != null)
                     slotBackgrounds[i].color = selected ? new Color(.055f, .19f, .23f, .96f)
@@ -92,20 +93,20 @@ namespace Survive.Combat
                     numberLabels[i].color = selected ? Accent : Muted;
                 if (iconImages != null && i < iconImages.Length && iconImages[i] != null)
                 {
-                    Sprite icon = weapon != null && weapon.Definition != null ? weapon.Definition.Icon : null;
+                    Sprite icon = healing != null ? healing.icon : weapon != null && weapon.Definition != null ? weapon.Definition.Icon : null;
                     iconImages[i].sprite = icon;
                     iconImages[i].enabled = icon != null;
                     iconImages[i].color = Color.white;
                 }
                 if (nameLabels != null && i < nameLabels.Length && nameLabels[i] != null)
                 {
-                    nameLabels[i].text = weapon != null ? weapon.DisplayName : "Vacío";
-                    nameLabels[i].color = weapon != null ? Color.white : Muted;
+                    nameLabels[i].text = healing != null ? healing.displayName : weapon != null ? weapon.DisplayName : "Vacío";
+                    nameLabels[i].color = weapon != null || healing != null ? Color.white : Muted;
                 }
                 if (ammoLabels != null && i < ammoLabels.Length && ammoLabels[i] != null)
                 {
-                    ammoLabels[i].text = weapon == null ? "—" : weapon.IsReloading ? "Recargando…"
-                        : $"{weapon.AmmoInMagazine} / {weapon.ReserveAmmo}";
+                    ammoLabels[i].text = healing != null ? "x" + inventory.GetHealingCount(i) : weapon == null ? "—" : weapon.IsReloading ? "Recargando…"
+                        : weapon.LoadedExplosiveAmmo != null ? weapon.AmmoInMagazine + " EXP" : $"{weapon.AmmoInMagazine} / {weapon.ReserveAmmo}";
                     ammoLabels[i].color = weapon == null ? Muted : weapon.IsReloading ? Reloading
                         : !weapon.HasAmmo ? new Color(1f, .48f, .38f, 1f) : new Color(.76f, .85f, .89f, 1f);
                 }

@@ -27,7 +27,7 @@ namespace UPP.ThirdPersonController.CameraSystems
             0,
             0,
             0,
-            0.5f,
+            1f,
             0.5f);
 
         
