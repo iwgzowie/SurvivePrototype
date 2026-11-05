@@ -59,6 +59,9 @@ public class TutorialCommandsAudio : MonoBehaviour
         if (spawner != null)
             spawner.OnWaveCompleted -= OnWaveCompleted;
 
+        // Deshabilitar el componente no detiene su AudioSource automáticamente.
+        // Primero cortar el comando y después liberar la prioridad.
+        if (voiceSource != null) voiceSource.Stop();
         if (narrationPlaying && voicePriority != null)
             voicePriority.EndNarration();
 
@@ -93,7 +96,7 @@ public class TutorialCommandsAudio : MonoBehaviour
 
     public void PlayNextCommand()
     {
-        if (commands == null)
+        if (!isActiveAndEnabled || commands == null)
             return;
 
         if (nextCommand + pendingCommands >= commands.Length)
@@ -110,7 +113,8 @@ public class TutorialCommandsAudio : MonoBehaviour
 
     private void PlayQueuedCommand()
     {
-        if (pendingCommands <= 0 ||
+        if (!isActiveAndEnabled || Time.timeScale <= 0f || voiceSource == null
+            || pendingCommands <= 0 ||
             nextCommand >= commands.Length)
             return;
 

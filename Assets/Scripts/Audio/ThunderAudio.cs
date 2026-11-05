@@ -60,6 +60,8 @@ public class ThunderAudio : MonoBehaviour
 
             if (stormActive)
                 ScheduleNextThunder();
+            else if (thunderSource != null)
+                thunderSource.Stop();
         }
 
         if (!stormActive)
@@ -82,17 +84,20 @@ public class ThunderAudio : MonoBehaviour
 
     public void SetStormActive(bool active)
     {
+        bool changed = stormActive != active;
         stormActive = active;
         previousStormState = active;
 
-        if (active)
+        if (active && changed)
             ScheduleNextThunder();
+        else if (!active && thunderSource != null)
+            thunderSource.Stop();
     }
 
     // Se puede llamar desde un evento de relampago.
     public void PlayThunder()
     {
-        if (Time.timeScale <= 0f)
+        if (!stormActive || !isActiveAndEnabled || Time.timeScale <= 0f)
             return;
 
         if (thunderClips == null || thunderClips.Length == 0)

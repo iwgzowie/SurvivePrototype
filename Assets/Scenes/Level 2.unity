@@ -1448545,6 +1448545,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RainController
   lluvia: {fileID: 1389022653}
+  thunderAudio: {fileID: 165121500}
+  ambienceAudio: {fileID: 1748307506}
 --- !u!4 &2115284613
 Transform:
   m_ObjectHideFlags: 0

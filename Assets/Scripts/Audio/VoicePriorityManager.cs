@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Audio;
+using System;
 
 public class VoicePriorityManager : MonoBehaviour
 {
@@ -19,6 +20,7 @@ public class VoicePriorityManager : MonoBehaviour
     private float currentMusicDb;
 
     public bool IsNarrationActive => narrationActive;
+    public event Action NarrationStarted;
 
     private void Start()
     {
@@ -57,27 +59,23 @@ public class VoicePriorityManager : MonoBehaviour
 
         narrationActive = true;
 
-        if (transmissionSource != null &&
-            transmissionSource.isPlaying)
-        {
-            transmissionSource.Pause();
-        }
+        if (transmissionSource != null) transmissionSource.Stop();
+        transmissionSource = null;
+        NarrationStarted?.Invoke();
     }
 
     public void EndNarration()
     {
         narrationActive = false;
-
-        if (transmissionSource != null)
-            transmissionSource.UnPause();
     }
 
-    public void RegisterTransmission(AudioSource source)
+    public bool RegisterTransmission(AudioSource source)
     {
+        if (source == null || narrationActive
+            || (transmissionSource != null && transmissionSource != source))
+            return false;
         transmissionSource = source;
-
-        if (narrationActive && transmissionSource != null)
-            transmissionSource.Pause();
+        return true;
     }
 
     public void ClearTransmission(AudioSource source)

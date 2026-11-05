@@ -48,6 +48,8 @@ public class TransmissionSpeaker : MonoBehaviour
         if (manager == null)
             return;
 
+        // Sólo consumir el poste si comenzó a sonar. Si hay otro audio con
+        // prioridad, queda disponible para intentarlo al volver a entrar.
         if (manager.TryPlayNext(speakerSource))
             alreadyPlayed = true;
     }
