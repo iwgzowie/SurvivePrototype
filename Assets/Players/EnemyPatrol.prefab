@@ -45,6 +45,9 @@ GameObject:
   - component: {fileID: 1778039262523812873}
   - component: {fileID: 1390508244538733962}
   - component: {fileID: -2754242467419617808}
+  - component: {fileID: 4687521726859196326}
+  - component: {fileID: -2439361388107151560}
+  - component: {fileID: 9183793140968857307}
   m_Layer: 0
   m_Name: EnemyPatrol
   m_TagString: Enemy
@@ -171,6 +174,180 @@ MonoBehaviour:
   useRandomPatrol: 1
   randomPatrolRadius: 12
   stuckCheckInterval: 1
+--- !u!82 &4687521726859196326
+AudioSource:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1903332982048016842}
+  m_Enabled: 1
+  serializedVersion: 4
+  OutputAudioMixerGroup: {fileID: -3462166793482212727, guid: bda7d729169b0d147909734a544ac13a, type: 2}
+  m_audioClip: {fileID: 0}
+  m_Resource: {fileID: 0}
+  m_PlayOnAwake: 0
+  m_Volume: 1
+  m_Pitch: 1
+  Loop: 0
+  Mute: 0
+  Spatialize: 0
+  SpatializePostEffects: 0
+  Priority: 128
+  DopplerLevel: 1
+  MinDistance: 1
+  MaxDistance: 500
+  Pan2D: 0
+  rolloffMode: 0
+  BypassEffects: 0
+  BypassListenerEffects: 0
+  BypassReverbZones: 0
+  rolloffCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  panLevelCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  spreadCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  reverbZoneMixCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+--- !u!114 &-2439361388107151560
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1903332982048016842}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ea43f523d311b8443b9d3d07f8ceaf58, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ZombieVoiceAudio
+  health: {fileID: 1390508244538733962}
+  animator: {fileID: 0}
+  voiceSource: {fileID: 4687521726859196326}
+  voiceGroup: {fileID: -3462166793482212727, guid: bda7d729169b0d147909734a544ac13a, type: 2}
+  idleClips:
+  - {fileID: 8300000, guid: 5573e201d29ddac42bd49d8d8682fd9c, type: 3}
+  - {fileID: 8300000, guid: 7b08277a986f61a4aa6d42231ba2744d, type: 3}
+  - {fileID: 8300000, guid: 2b2b4ec06a7f8624fa715b8273da4540, type: 3}
+  attackClips:
+  - {fileID: 8300000, guid: e5c016ba4ecf9f545861318d93e7e32a, type: 3}
+  - {fileID: 8300000, guid: e2e6ea3ebe0f1754981d9af13bd522d5, type: 3}
+  - {fileID: 8300000, guid: 1e7ea4af1651370438ebe9f13379143a, type: 3}
+  damageClips:
+  - {fileID: 8300000, guid: 0a9d054aee9c33148ae46b0a346b1e33, type: 3}
+  - {fileID: 8300000, guid: 95a09c7b4ea8b8149b70d6b6ca19ac1b, type: 3}
+  - {fileID: 8300000, guid: f239a44b23a104b4c9ea9cf2da98e274, type: 3}
+  deathClips:
+  - {fileID: 8300000, guid: 5ac85bbbe34b366429155c095444712b, type: 3}
+  - {fileID: 8300000, guid: e688d8f781337a646b4707a46012f2d0, type: 3}
+  - {fileID: 8300000, guid: 10b3486203abddd4bad266ebc3173d3b, type: 3}
+  minIdleDelay: 5
+  maxIdleDelay: 12
+  volume: 0.75
+  pitchRange: {x: 0.9, y: 1.1}
+  minDistance: 2
+  maxDistance: 25
+--- !u!114 &9183793140968857307
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1903332982048016842}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2e166db6f7c42a743999abb351aba93d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ZombieFootstepAudio
+  footstepType: 0
+  health: {fileID: 1390508244538733962}
+  footstepSource: {fileID: 4687521726859196326}
+  sfxGroup: {fileID: -60746942021084555, guid: bda7d729169b0d147909734a544ac13a, type: 2}
+  surfaces:
+  - surface: 2
+    clips:
+    - {fileID: 8300000, guid: 2a8229ba279e46d43955c1ea4b8570f9, type: 3}
+    - {fileID: 8300000, guid: 99e45136f3f32eb419c3df0afa31d496, type: 3}
+  - surface: 1
+    clips:
+    - {fileID: 8300000, guid: 943e970375a82e848bd015f7a4c569cd, type: 3}
+    - {fileID: 8300000, guid: b41d94828d23b6d4794269ba54846b55, type: 3}
+  - surface: 0
+    clips:
+    - {fileID: 8300000, guid: aa8b0fa98e0e518449fc7879a079c4d8, type: 3}
+    - {fileID: 8300000, guid: 830bb72941abde64188aed8c421926f7, type: 3}
+  volume: 0.75
+  pitchRange: {x: 0.93, y: 1.07}
+  minDistance: 2
+  maxDistance: 18
+  groundLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  rayStartHeight: 1
+  rayDistance: 3
+  defaultSurface: 2
 --- !u!1001 &2393857046585916319
 PrefabInstance:
   m_ObjectHideFlags: 0
