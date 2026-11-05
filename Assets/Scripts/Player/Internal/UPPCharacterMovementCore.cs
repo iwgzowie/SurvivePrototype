@@ -618,7 +618,7 @@ namespace UPP.ThirdPersonController.Internal
                 Vector3 localVelocity = transform.InverseTransformDirection(rb.linearVelocity);
                 rb.linearVelocity =
                     transform.forward * speedMultiplier * Speed
-                    + transform.up * localVelocity.y;
+                    + transform.up * GroundedVerticalSpeed(localVelocity.y);
             }
             else
             {
@@ -650,7 +650,7 @@ namespace UPP.ThirdPersonController.Internal
                     movementDirection.InverseTransformDirection(rb.linearVelocity);
                 rb.linearVelocity =
                     movementDirection.forward * speedMultiplier * Speed
-                    + transform.up * localVelocity.y;
+                    + transform.up * GroundedVerticalSpeed(localVelocity.y);
             }
             else
             {
@@ -667,7 +667,7 @@ namespace UPP.ThirdPersonController.Internal
                 Vector3 localVelocity = transform.InverseTransformDirection(rb.linearVelocity);
                 rb.linearVelocity =
                     DirectionTransform.forward * speedMultiplier * Speed
-                    + transform.up * localVelocity.y;
+                    + transform.up * GroundedVerticalSpeed(localVelocity.y);
             }
             else
             {
@@ -675,6 +675,13 @@ namespace UPP.ThirdPersonController.Internal
                     DirectionTransform.forward * speedMultiplier * Speed * Time.deltaTime,
                     Space.World);
             }
+        }
+
+        private float GroundedVerticalSpeed(float velocity)
+        {
+            // El impulso de resolver el borde de un escalón no es un salto.
+            // Los saltos reales y el movimiento en el aire conservan su velocidad vertical.
+            return IsGrounded && !IsJumping ? Mathf.Min(0f, velocity) : velocity;
         }
 
         public void InAirMovementControl(bool jumpInert = true)
@@ -1078,7 +1085,7 @@ namespace UPP.ThirdPersonController.Internal
 
         protected virtual void WallAHeadCheck()
         {
-            WallAHead = Physics.Raycast(
+            WallAHead = TryGetExternalHit(
                 rb.position + (rb.rotation * Vector3.up) * WallRayHeight,
                 DirectionTransform.forward,
                 out RaycastHit hit,

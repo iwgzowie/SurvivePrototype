@@ -62,7 +62,7 @@ namespace Survive.Editor
                     case 0:
                         movement=Object.FindFirstObjectByType<UPPCharacterMovementComponent>();animator=movement.GetComponent<Animator>();body=movement.GetComponent<Rigidbody>();weapons=movement.GetComponent<PlayerWeaponController>();
                         Check(movement.GetComponent<UPPAnimatorControllerComponent>().ValidateAnimatorContract(),"Contrato de parámetros y capas UPP válido");
-                        Check(!movement.RootMotion && Mathf.Approximately(movement.JumpForce,1.8542421f),"Física y fuerza de salto originales conservadas");
+                        Check(!movement.RootMotion && Mathf.Approximately(movement.JumpForce,1.9221364f),"Root motion desactivado y salto calibrado con aumento de altura del 10 %");
                         var sources=AssetDatabase.GetDependencies(RifleGameplayAnimationSetup.Controller,true).Where(p=>p.StartsWith("Assets/Rifle_27A2_Pro/Animation/")&&p.EndsWith(".fbx")).ToArray();
                         Check(sources.Length>=30,"Al menos 30 clips RIFLE PRO realmente conectados al Animator");
                         Check(sources.All(p=>AssetDatabase.LoadAllAssetsAtPath(p).OfType<AnimationClip>().Any(c=>c.humanMotion&&c.length>0)),"Todas las fuentes integradas tienen animación Humanoid válida");

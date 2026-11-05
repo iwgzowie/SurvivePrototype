@@ -145,7 +145,7 @@ namespace Survive.Editor
                         measuringJump = false;
                         float ratio = reducedPeak / baselinePeak;
                         Check(baselinePeak > 1 && reducedPeak > .1f, "Se midieron dos saltos con impulso UPP y gravedad real");
-                        Check(Mathf.Abs(ratio - .3f) < .025f, $"Altura reducida al 30%: anterior={baselinePeak:F3} m nueva={reducedPeak:F3} m proporción={ratio:F3}");
+                        Check(Mathf.Abs(ratio - .33f) < .025f, $"Altura objetivo 33% del salto original (+10% sobre la altura reducida): anterior={baselinePeak:F3} m nueva={reducedPeak:F3} m proporción={ratio:F3}");
                         Check(wallet.Coins == 0 && OccupiedSlots() == 1, "La sesión sigue con cero oro y una sola pistola");
                         Finish(); break;
                 }

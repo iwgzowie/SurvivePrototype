@@ -50,6 +50,7 @@ public class BossBase : MonoBehaviour
     private bool isEnraged = false;
     private float nextAreaAttackTime;
     private float nextSummonTime;
+    private float nextPathUpdate;
     private float minionSpeedMultiplier = 1f;
 
     
@@ -115,9 +116,11 @@ public class BossBase : MonoBehaviour
 
     private void MoveTowardsPlayer()
     {
-        if (targetPlayer != null && navAgent != null && navAgent.enabled && navAgent.isOnNavMesh)
+        if (targetPlayer != null && navAgent != null && navAgent.enabled && navAgent.isOnNavMesh && Time.time >= nextPathUpdate)
         {
-            navAgent.SetDestination(targetPlayer.position);
+            nextPathUpdate = Time.time + .25f;
+            if (!navAgent.pathPending && NavMesh.SamplePosition(targetPlayer.position, out var target, 4f, EnemyNavigation.Filter(navAgent)))
+                navAgent.SetDestination(target.position);
         }
     }
 

@@ -73,8 +73,13 @@ public class ZombieFootstepAudio : MonoBehaviour
 
     private AudioClip previousClip;
     private Transform enemyRoot;
+    private float lastStepTime = float.NegativeInfinity;
 
     public EnemyFootstepType Type => footstepType;
+    public int PlayedSteps { get; private set; }
+    public AudioClip LastClip => previousClip;
+    public FootstepSurfaceType LastSurface { get; private set; }
+    public AudioSource Source => footstepSource;
 
     private void Awake()
     {
@@ -83,6 +88,14 @@ public class ZombieFootstepAudio : MonoBehaviour
         enemyRoot = health != null
             ? health.transform
             : transform.root;
+
+        var animator = enemyRoot.GetComponentInChildren<Animator>(true);
+        if (animator != null && animator.gameObject != gameObject)
+        {
+            var relay = animator.GetComponent<ZombieFootstepAnimationEvents>();
+            if (relay == null) relay = animator.gameObject.AddComponent<ZombieFootstepAnimationEvents>();
+            relay.Bind(this);
+        }
 
         // Usar una fuente exclusiva para footsteps.
         if (footstepSource == null)
@@ -110,12 +123,14 @@ public class ZombieFootstepAudio : MonoBehaviour
     {
         if (!isActiveAndEnabled ||
             Time.timeScale <= 0f ||
+            Time.time - lastStepTime < .08f ||
             (health != null && health.IsDead))
         {
             return;
         }
 
         FootstepSurfaceType surface = DetectSurface();
+        LastSurface = surface;
 
         AudioClip[] clips = GetClips(surface);
 
@@ -154,11 +169,7 @@ public class ZombieFootstepAudio : MonoBehaviour
 
             nearest = hits[i].distance;
 
-            FootstepSurface marker = col.GetComponentInParent<FootstepSurface>();
-
-            detected = marker != null
-                ? marker.surfaceType
-                : defaultSurface;
+            detected = FootstepSurface.Resolve(col, defaultSurface);
         }
 
         return detected;
@@ -226,6 +237,8 @@ public class ZombieFootstepAudio : MonoBehaviour
             );
 
             footstepSource.PlayOneShot(clip, volume);
+            lastStepTime = Time.time;
+            PlayedSteps++;
             return;
         }
     }

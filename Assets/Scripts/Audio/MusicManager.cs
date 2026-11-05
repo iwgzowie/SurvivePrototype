@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Audio;
+using Survive.Audio;
 
 public class AdaptiveMusicAudio : MonoBehaviour
 {
@@ -73,6 +74,7 @@ public class AdaptiveMusicAudio : MonoBehaviour
         source.spatialBlend = 0f;
         source.volume = 0f;
         source.pitch = 1f;
+        source.priority = 0;
 
         if (musicGroup != null)
             source.outputAudioMixerGroup = musicGroup;
@@ -80,6 +82,7 @@ public class AdaptiveMusicAudio : MonoBehaviour
 
     private void OnEnable()
     {
+        MusicVolumeSettings.Changed += OnMusicVolumeChanged;
         if (spawner == null)
             spawner = FindFirstObjectByType<EnemySpawner>();
 
@@ -93,6 +96,7 @@ public class AdaptiveMusicAudio : MonoBehaviour
 
     private void OnDisable()
     {
+        MusicVolumeSettings.Changed -= OnMusicVolumeChanged;
         if (spawner == null) return;
 
         spawner.OnWaveStarted -= OnWaveStarted;
@@ -113,7 +117,7 @@ public class AdaptiveMusicAudio : MonoBehaviour
 
         active.clip = menuMusic;
         active.loop = true;
-        active.volume = musicVolume;
+        active.volume = musicVolume * MusicVolumeSettings.Volume;
 
         activeStartDsp = AudioSettings.dspTime + 0.1;
 
@@ -192,19 +196,10 @@ public class AdaptiveMusicAudio : MonoBehaviour
     private void Update()
     {
         double now = AudioSettings.dspTime;
+        ApplyMusicVolume(now);
 
         if (transitioning)
         {
-            double duration =
-                transitionEndDsp - transitionStartDsp;
-
-            float t = Mathf.Clamp01(
-                (float)((now - transitionStartDsp) /
-                duration));
-
-            active.volume = musicVolume * (1f - t);
-            inactive.volume = musicVolume * t;
-
             if (now >= transitionEndDsp)
             {
                 active.Stop();
@@ -248,6 +243,22 @@ public class AdaptiveMusicAudio : MonoBehaviour
                 0.08
             );
         }
+    }
+
+    private void OnMusicVolumeChanged(float value) => ApplyMusicVolume(AudioSettings.dspTime);
+
+    private void ApplyMusicVolume(double now)
+    {
+        if (active == null) return;
+        float gain = musicVolume * MusicVolumeSettings.Volume;
+        if (transitioning && inactive != null)
+        {
+            float t = Mathf.Clamp01((float)((now - transitionStartDsp)
+                / System.Math.Max(.05, transitionEndDsp - transitionStartDsp)));
+            active.volume = gain * (1f - t);
+            inactive.volume = gain * t;
+        }
+        else active.volume = gain;
     }
 
     // Se llama desde el boton Play del personaje.

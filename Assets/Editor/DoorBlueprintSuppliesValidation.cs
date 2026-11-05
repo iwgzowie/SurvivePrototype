@@ -14,6 +14,7 @@ using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.LowLevel;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UPP.ThirdPersonController;
@@ -24,9 +25,12 @@ namespace Survive.Editor
     [InitializeOnLoad] public static class DoorBlueprintSuppliesValidation
     {
         const string Key="Survive.DoorBlueprintSuppliesValidation";
+        static bool MapPreview=>SessionState.GetBool(Key+".Map",false);
+        static string ReportFolder=>MapPreview?"Logs/DoorBossFix/Map":DoorBlueprintSuppliesSetup.Folder;
         static readonly List<string> checks=new List<string>(),errors=new List<string>(),baselineErrors=new List<string>();
         static readonly List<float> shotTimes=new List<float>();
         static readonly Dictionary<Renderer,Material[]> materials=new Dictionary<Renderer,Material[]>();
+        static readonly Dictionary<Material,Color> emissionBefore=new Dictionary<Material,Color>();
         static PuertaConLlave[] doors; static GameObject player,wall; static Camera camera; static BossBase boss;
         static DoorBlueprintPickup blueprint; static KeyPickup key; static PlayerDoorGuide guide; static PlayerKeyInventory keys;
         static PlayerInteractionController interaction; static PlayerVendorController shop; static PlayerWallet wallet; static NpcVendor vendor;
@@ -42,7 +46,7 @@ namespace Survive.Editor
                 if(!SessionState.GetBool(Key,false)) return;
                 if(state==PlayModeStateChange.EnteredPlayMode)
                 {
-                    checks.Clear();errors.Clear();baselineErrors.Clear();materials.Clear();shotTimes.Clear(); stage=failures=finalShots=0; stoppedAtZero=false;
+                    checks.Clear();errors.Clear();baselineErrors.Clear();materials.Clear();emissionBefore.Clear();shotTimes.Clear(); stage=failures=finalShots=0; stoppedAtZero=false;
                     start=EditorApplication.timeSinceStartup;next=start+3; Application.runInBackground=true;
                     previousSettings=InputSystem.settings; settings=Object.Instantiate(previousSettings);
                     settings.backgroundBehavior=InputSettings.BackgroundBehavior.IgnoreFocus; settings.editorInputBehaviorInPlayMode=InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
@@ -55,6 +59,7 @@ namespace Survive.Editor
         public static void Run()
         {
             if(!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+            SessionState.SetBool(Key+".Map",false);
             Directory.CreateDirectory(DoorBlueprintSuppliesSetup.Folder);
             var source=EditorSceneManager.OpenScene(DoorKeyProgressionSetup.Level,OpenSceneMode.Single);
             var originals=DoorKeyProgressionSetup.Names.Select(n=>source.GetRootGameObjects().SelectMany(r=>r.GetComponentsInChildren<PuertaConLlave>(true)).Single(d=>d.name==n)).ToArray();
@@ -89,6 +94,15 @@ namespace Survive.Editor
             }
             EditorSceneManager.CloseScene(source,true); Prepare();SessionState.SetBool(Key,true);EditorApplication.EnterPlaymode();
         }
+        [MenuItem("Survive/Gameplay/Validar guía roja de día y noche en Level 2")]
+        public static void PreviewInLevelTwo()
+        {
+            if(EditorApplication.isPlayingOrWillChangePlaymode) throw new Exception("Salí de Play Mode.");
+            if(!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+            SessionState.SetBool(Key+".Map",true);Directory.CreateDirectory(ReportFolder);
+            EditorSceneManager.OpenScene(DoorKeyProgressionSetup.Level,OpenSceneMode.Single);
+            Prepare();SessionState.SetBool(Key,true);EditorApplication.EnterPlaymode();
+        }
         static void Prepare()=>typeof(CharacterCustomizationValidation).GetMethod("PrepareBatchGameView",BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,null);
         static void Tick()
         {
@@ -97,6 +111,7 @@ namespace Survive.Editor
             if(EditorApplication.timeSinceStartup-start>180) { Check(false,"Timeout etapa "+stage);Finish();return; }
             if(EditorApplication.timeSinceStartup<next || Time.frameCount<=frame+3) return;
             frame=Time.frameCount;next=EditorApplication.timeSinceStartup+.35;
+            if(MapPreview) { TickMap();return; }
             try
             {
                 switch(stage)
@@ -108,6 +123,7 @@ namespace Survive.Editor
                         blueprint=Object.FindFirstObjectByType<DoorBlueprintPickup>();key=Object.FindFirstObjectByType<KeyPickup>();
                         Require(blueprint!=null && key!=null,"Boss real suelta plano y llave garantizados");
                         foreach(var d in doors) foreach(var r in d.GuideRenderers) materials[r]=r.sharedMaterials;
+                        foreach(var material in materials.Values.SelectMany(m=>m).Where(m=>m!=null && m.HasProperty("_EmissionColor"))) emissionBefore[material]=material.GetColor("_EmissionColor");
                         ViewPickup(blueprint.transform);interaction.RefreshTarget();
                         Require(interaction.CurrentInteractable==blueprint,"Mira selecciona plano 3D");
                         Check(player.GetComponent<PlayerDoorGuide>()==null,"Acercarse no recoge automáticamente el plano");Press();stage++;break;
@@ -115,11 +131,17 @@ namespace Survive.Editor
                         Release();guide=player.GetComponent<PlayerDoorGuide>();
                         Require(guide!=null && guide.Blueprints==1 && blueprint==null,"E recoge un plano una sola vez (planos="+(guide!=null?guide.Blueprints:-1)+", objeto="+(blueprint!=null)+", target="+interaction.CurrentInteractable+")");
                         Check(guide.Target==null && doors.All(d=>Original(d)),"Sin llave el plano espera sin resaltar una puerta");
-                        ViewPickup(key.transform);interaction.RefreshTarget();Require(interaction.CurrentInteractable==key,"Mira selecciona llave");Press();stage++;break;
+                        ViewDoor(doors[0],true);stage=20;break;
+                    case 20:
+                        Capture("00-next-door-original.png");
+                        ViewPickup(key.transform);interaction.RefreshTarget();Require(interaction.CurrentInteractable==key,"Mira selecciona llave");Press();stage=3;break;
                     case 3:
                         Release();Require(keys.KeyCount==1 && guide.Target==doors[0],"Recoger llave activa guía de Zona2");
                         Check(Neon(doors[0]) && doors.Skip(1).All(Original),"Neón sólo en primera puerta habilitada");
                         var neon=Resources.Load<Material>("Gameplay/DoorGuideNeon"); Check(neon.IsKeywordEnabled("_EMISSION") && neon.GetColor("_EmissionColor").maxColorComponent>1,"Material neón conserva emisión HDR activa");
+                        Check(doors[0].GuideRenderers.All(PreservesSurface),"Neón conserva shader, texturas, UV, color base, normales y propiedades de superficie");
+                        Check(doors[0].GuideRenderers.All(EmissionFollowsAlbedo),"Emisión roja HDR sigue la textura y UV originales de la puerta");
+                        Check(emissionBefore.All(pair=>pair.Key.GetColor("_EmissionColor")==pair.Value),"Resaltar no modifica los materiales originales compartidos");
                         Check(!doors[1].Interact(player)&&keys.KeyCount==1,"Plano no permite saltear Zona2");
                         ViewDoor(doors[0],true);stage++;break;
                     case 4:
@@ -192,6 +214,57 @@ namespace Survive.Editor
             }
             catch(Exception e) { Check(false,e.ToString());Finish(); }
         }
+        static void TickMap()
+        {
+            try
+            {
+                switch(stage)
+                {
+                    case 0:
+                        Object.FindFirstObjectByType<EnemySpawner>().CancelWaves();
+                        foreach(var enemy in Object.FindObjectsByType<EnemyHealth>(FindObjectsSortMode.None))Object.Destroy(enemy.gameObject);
+                        doors=DoorKeyProgressionSetup.Names.Select(n=>Object.FindObjectsByType<PuertaConLlave>(FindObjectsSortMode.None).Single(d=>d.name==n)).ToArray();
+                        foreach(var d in doors)foreach(var r in d.GuideRenderers)materials[r]=r.sharedMaterials;
+                        player=Object.FindFirstObjectByType<PlayerHealth>().gameObject;keys=PlayerKeyInventory.ForPlayer(player,true);
+                        player.GetComponent<UPPCharacterMovementComponent>().UseDefaultControllerInput=false;
+                        player.GetComponent<Rigidbody>().constraints=RigidbodyConstraints.FreezeAll;
+                        camera=Camera.main;camera.transform.SetParent(null,true);
+                        foreach(var rig in Object.FindObjectsByType<UPP.ThirdPersonController.CameraSystems.UPPTPSCameraController>(FindObjectsSortMode.None))rig.enabled=false;
+                        Check(camera.allowHDR && camera.GetUniversalAdditionalCameraData().renderPostProcessing,"Capturas con HDR y postproceso reales de Level 2");
+                        ViewMapDoor(doors[0]);stage++;next+=.5;break;
+                    case 1:
+                        Capture("01-day-original.png");keys.TryAddKey();guide=player.GetComponent<PlayerDoorGuide>();if(guide==null)guide=player.AddComponent<PlayerDoorGuide>();
+                        File.WriteAllLines(ReportFolder+"/source-materials.txt",materials.Values.SelectMany(m=>m).Where(m=>m!=null).Distinct().Select(m=>AssetDatabase.GetAssetPath(m)+" | shader="+m.shader.name+" | color="+m.color+" | texture="+AssetDatabase.GetAssetPath(m.mainTexture)));
+                        Check(guide.TryAddBlueprint() && guide.Target==doors[0],"Plano real señala Zona2 en el mapa");
+                        Check(Neon(doors[0]) && doors[0].GuideRenderers.All(PreservesSurface) && doors[0].GuideRenderers.All(EmissionFollowsAlbedo),"Guía roja conserva textura y superficie en Level 2");
+                        Check(materials.Values.SelectMany(m=>m).Any(m=>m!=null && m.mainTexture!=null),"Puertas reales conservan sus texturas asignadas");
+                        stage++;break;
+                    case 2:
+                        Capture("02-day-red-guide.png");guide.enabled=false;Check(Original(doors[0]),"Desactivar guía restaura el material diurno original");
+                        Object.FindFirstObjectByType<StormLightingSkybox>().ActivarNoche();Time.timeScale=4;stage++;break;
+                    case 3:
+                        if(Object.FindFirstObjectByType<StormLightingSkybox>().NightProgress<1)break;
+                        Time.timeScale=1;
+                        var lightning=Object.FindFirstObjectByType<LightningController>();
+                        if(lightning!=null)
+                        {
+                            lightning.enabled=false;lightning.CancelInvoke();
+                            foreach(string field in new[]{"luzRelampago1","luzRelampago2"})
+                            { var light=(Light)typeof(LightningController).GetField(field,BindingFlags.NonPublic|BindingFlags.Instance).GetValue(lightning);if(light!=null)light.intensity=0; }
+                        }
+                        stage++;next+=.6;break;
+                    case 4:
+                        Capture("03-night-original.png");guide.enabled=true;
+                        Check(Neon(doors[0]) && doors[0].GuideRenderers.All(PreservesSurface),"Guía roja vuelve a activarse con la textura original de noche");stage++;break;
+                    case 5:
+                        Capture("04-night-red-guide.png");guide.enabled=false;
+                        Check(doors.All(Original),"Materiales originales restaurados después de la vista diurna/nocturna");
+                        Check(keys.KeyCount==1 && guide.Blueprints==1,"Activar y desactivar el resaltado no consume llave ni plano");
+                        Check(errors.Count==0,"Sin errores nuevos en Level 2 durante las capturas");Finish();break;
+                }
+            }
+            catch(Exception e) { Check(false,e.ToString());Finish(); }
+        }
         static void CreateRuntime()
         {
             doors=DoorKeyProgressionSetup.Names.Select(n=>Object.FindObjectsByType<PuertaConLlave>(FindObjectsSortMode.None).Single(d=>d.name==n)).ToArray();
@@ -224,7 +297,54 @@ namespace Survive.Editor
             Vector3 eye=point+Vector3.up*1.5f-normal*(far?7:1);Vector3 aim=new Vector3(b.center.x,b.min.y+(far?b.size.y*.5f:1.2f),b.center.z);
             camera.transform.SetPositionAndRotation(eye,Quaternion.LookRotation(aim-eye));Physics.SyncTransforms();
         }
-        static bool Neon(PuertaConLlave door)=>door.GuideRenderers.All(r=>r.sharedMaterials.All(m=>m==Resources.Load<Material>("Gameplay/DoorGuideNeon")));
+        static void ViewMapDoor(PuertaConLlave door)
+        {
+            var bounds=door.GetComponent<Collider>().bounds;
+            Vector3 normal=bounds.size.x<bounds.size.z?Vector3.right:Vector3.forward;
+            Vector3 playerPosition=bounds.center+Vector3.Cross(normal,Vector3.up)*4;playerPosition.y=bounds.min.y+.05f;Move(playerPosition);
+            camera.fieldOfView=80;bool visible=false;
+            foreach(float side in new[]{1f,-1f})
+            {
+                Vector3 eye=bounds.center-normal*side*((normal.x!=0?bounds.extents.x:bounds.extents.z)+2.8f)+Vector3.up*.2f;
+                Vector3 delta=bounds.center-eye;
+                var hit=Physics.RaycastAll(eye,delta.normalized,delta.magnitude+.2f,~0,QueryTriggerInteraction.Ignore)
+                    .Where(h=>!h.collider.transform.IsChildOf(player.transform)).OrderBy(h=>h.distance).FirstOrDefault();
+                if(hit.collider!=null && !door.OwnsCollider(hit.collider))continue;
+                camera.transform.SetPositionAndRotation(eye,Quaternion.LookRotation(delta));visible=true;break;
+            }
+            Require(visible,"Cámara de revisión ve la puerta sin paredes delante");Physics.SyncTransforms();
+        }
+        static bool Neon(PuertaConLlave door)=>door.GuideRenderers.All(r=>r.sharedMaterials.Length==materials[r].Length && r.sharedMaterials.Select((m,i)=>
+            materials[r][i]==null ? m==null : m!=null && m!=materials[r][i] && m.IsKeywordEnabled("_EMISSION")
+            && m.GetColor("_EmissionColor").r>0 && m.GetColor("_EmissionColor").g<m.GetColor("_EmissionColor").r*.05f
+            && m.GetColor("_EmissionColor").b<m.GetColor("_EmissionColor").r*.05f).All(pass=>pass));
+        static bool PreservesSurface(Renderer renderer)
+        {
+            var active=renderer.sharedMaterials; var source=materials[renderer];
+            if(active.Length!=source.Length) return false;
+            for(int i=0;i<source.Length;i++)
+            {
+                var a=source[i];var b=active[i]; if(a==null) {if(b!=null)return false;continue;}
+                if(b==null || a.shader!=b.shader)return false;
+                foreach(string property in a.GetTexturePropertyNames().Where(p=>p!="_EmissionMap"))
+                    if(a.GetTexture(property)!=b.GetTexture(property) || a.GetTextureScale(property)!=b.GetTextureScale(property) || a.GetTextureOffset(property)!=b.GetTextureOffset(property)) return false;
+                foreach(string property in new[]{"_BaseColor","_Color"}) if(a.HasProperty(property) && a.GetColor(property)!=b.GetColor(property))return false;
+                foreach(string property in new[]{"_Metallic","_Smoothness","_BumpScale","_OcclusionStrength","_Cull","_AlphaClip","_Cutoff"})
+                    if(a.HasProperty(property) && !Mathf.Approximately(a.GetFloat(property),b.GetFloat(property)))return false;
+            }
+            return true;
+        }
+        static bool EmissionFollowsAlbedo(Renderer renderer)
+        {
+            var active=renderer.sharedMaterials;var source=materials[renderer];
+            for(int i=0;i<source.Length;i++)
+            {
+                var a=source[i]; if(a==null)continue;var b=active[i];
+                string property=a.HasProperty("_BaseMap")?"_BaseMap":a.HasProperty("_MainTex")?"_MainTex":null;
+                if(property!=null && (b.GetTexture("_EmissionMap")!=a.GetTexture(property) || b.GetTextureScale("_EmissionMap")!=a.GetTextureScale(property) || b.GetTextureOffset("_EmissionMap")!=a.GetTextureOffset(property)))return false;
+            }
+            return true;
+        }
         static bool Original(PuertaConLlave door)=>door.GuideRenderers.All(r=>r.sharedMaterials.SequenceEqual(materials[r]));
         static void PrepareShop()
         {
@@ -252,7 +372,7 @@ namespace Survive.Editor
             var rt=(RenderTexture)typeof(CharacterCustomizationValidation).GetMethod("GameViewFramebuffer",BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,null);
             if(rt==null) return;var previous=RenderTexture.active;RenderTexture.active=rt;var image=new Texture2D(rt.width,rt.height,TextureFormat.RGB24,false);image.ReadPixels(new Rect(0,0,rt.width,rt.height),0,0);image.Apply();
             if(SystemInfo.graphicsUVStartsAtTop) { var p=image.GetPixels32();var f=new Color32[p.Length];for(int y=0;y<rt.height;y++) Array.Copy(p,y*rt.width,f,(rt.height-y-1)*rt.width,rt.width);image.SetPixels32(f);image.Apply(); }
-            File.WriteAllBytes(DoorBlueprintSuppliesSetup.Folder+"/"+name,image.EncodeToPNG());Object.DestroyImmediate(image);RenderTexture.active=previous;
+            File.WriteAllBytes(ReportFolder+"/"+name,image.EncodeToPNG());Object.DestroyImmediate(image);RenderTexture.active=previous;
         }
         static void Check(bool pass,string label) { checks.Add((pass?"PASS ":"FAIL ")+label);if(!pass) failures++; }
         static void Require(bool pass,string label) { Check(pass,label);if(!pass) throw new Exception(label); }
@@ -264,7 +384,9 @@ namespace Survive.Editor
         static void Finish()
         {
             Application.logMessageReceived-=OnLog;Time.timeScale=1;
-            File.WriteAllText(DoorBlueprintSuppliesSetup.Folder+"/validation.json",JsonUtility.ToJson(new Result { passed=checks.Count-failures,failed=failures,checks=checks.ToArray(),errors=errors.ToArray(),baselineErrors=baselineErrors.ToArray() },true));
+            var result=new Result { passed=checks.Count-failures,failed=failures,checks=checks.ToArray(),errors=errors.ToArray(),baselineErrors=baselineErrors.ToArray() };
+            if(MapPreview)result.scope="Level 2 real con HDR/postproceso y transición nocturna originales: guía roja sobre puerta real, textura/UV conservadas, restauración al desactivar y capturas comparables de día y noche. Sin build ni recorrido manual completo.";
+            File.WriteAllText(ReportFolder+"/validation.json",JsonUtility.ToJson(result,true));
             if(keyboard!=null&&keyboard.added) InputSystem.RemoveDevice(keyboard);if(previousSettings!=null) InputSystem.settings=previousSettings;if(settings!=null) Object.DestroyImmediate(settings);if(nav.valid) nav.Remove();
             SessionState.SetInt(Key+".Exit",failures==0?0:1);Debug.Log("DOOR_BLUEPRINT_SUPPLIES_VALIDATION="+(failures==0?"PASS":"FAIL")+" "+(checks.Count-failures)+"/"+checks.Count);EditorApplication.ExitPlaymode();
         }

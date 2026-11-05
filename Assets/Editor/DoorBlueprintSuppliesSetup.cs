@@ -25,7 +25,7 @@ namespace Survive.Editor
             if (EditorApplication.isPlayingOrWillChangePlaymode) throw new Exception("Salí de Play Mode.");
             Directory.CreateDirectory(Folder); Directory.CreateDirectory(".utmp/DoorBlueprintSuppliesBackup");
             Ensure("Assets/Prefabs/Items"); Ensure("Assets/Resources/Gameplay");
-            var neon = Material(Neon, new Color(.02f,.85f,1), new Color(.02f,1,1)*3f);
+            var neon = Material(Neon, Color.white, new Color(2.2f,.025f,.01f,1));
             var paper = Material("Assets/Resources/Gameplay/DoorBlueprintPaper.mat",new Color(.025f,.22f,.5f),new Color(.02f,.15f,.4f));
             const string texturePath="Assets/Resources/Gameplay/DoorBlueprintGrid.asset";
             var grid=AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);

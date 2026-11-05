@@ -154,11 +154,7 @@ public class PlayerFootstepAudio : MonoBehaviour
 
             closest = hits[i].distance;
 
-            FootstepSurface marker =
-                col.GetComponentInParent<FootstepSurface>();
-
-            result = marker != null
-                ? marker.surfaceType : defaultSurface;
+            result = FootstepSurface.Resolve(col, defaultSurface);
         }
 
         return result;

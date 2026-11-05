@@ -9200,7 +9200,7 @@ MonoBehaviour:
   SprintingAcceleration: 2
   SprintingDeceleration: 0.6
   RotationSpeed: 5
-  JumpForce: 1.8542421
+  JumpForce: 1.9221364
   StoppingSpeed: 2
   AirInfluenceControll: 0.5
   MaxWalkableAngle: 45

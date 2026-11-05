@@ -26,10 +26,14 @@ namespace Survive.Editor
         static PuertaConLlave door; static GameObject blocker;
         static EnemyHealth recovered; static int coins;
         static bool bossSeen;
+        static BossBase blockedBoss;
+        static Vector3 lastBossPosition;
+        static float lastBossTime, largestBossStepExcess;
         [Serializable] class Result
         {
-            public int passed, failed, spawned;
-            public string scope = "Play Mode: Level 2 real con puntos forzados a otra isla, fallback de zombis y boss al jugador; puerta física/corte/restauración de tres tipos de agente; recuperación de aislado; progresión de velocidad. Sin build ni partida manual completa.";
+            public int passed, failed, spawned, bossRecoveries, bossRouteRetries;
+            public float largestBossStepExcess;
+            public string scope = "Play Mode: Level 2 con spawners reales, puntos en otra isla, recuperación de zombi aislado y progresión de velocidad; boss real perseguido por una barrera añadida tras iniciar su ruta, sin Warp y con persecución al reabrir. Sin build ni partida manual completa.";
             public string[] checks, errors, baselineErrors;
         }
         static EnemyNavigationValidation()
@@ -41,7 +45,7 @@ namespace Survive.Editor
                 if (state == PlayModeStateChange.EnteredPlayMode)
                 {
                     started = EditorApplication.timeSinceStartup; next = started + 3;
-                    stage = failures = spawns = 0; bossSeen = false; checks.Clear(); errors.Clear(); baselineErrors.Clear(); probes.Clear(); nav.Clear();
+                    stage = failures = spawns = 0; bossSeen = false; blockedBoss = null; largestBossStepExcess = 0; checks.Clear(); errors.Clear(); baselineErrors.Clear(); probes.Clear(); nav.Clear();
                     Application.runInBackground = true; Application.logMessageReceived += OnLog;
                 }
                 if (state == PlayModeStateChange.EnteredEditMode)
@@ -64,6 +68,16 @@ namespace Survive.Editor
         {
             if (!SessionState.GetBool(Key, false) || !EditorApplication.isPlaying) return;
             EditorApplication.QueuePlayerLoopUpdate();
+            if (blockedBoss != null)
+            {
+                float elapsed = Time.time - lastBossTime;
+                if (elapsed > 0)
+                {
+                    var agent = blockedBoss.GetComponent<NavMeshAgent>();
+                    largestBossStepExcess = Mathf.Max(largestBossStepExcess, Vector3.Distance(lastBossPosition, blockedBoss.transform.position) - agent.speed * elapsed);
+                    lastBossPosition = blockedBoss.transform.position; lastBossTime = Time.time;
+                }
+            }
             if (EditorApplication.timeSinceStartup - started > 130) { Check(false, "Tiempo máximo excedido"); Finish(); return; }
             if (EditorApplication.timeSinceStartup < next) return;
             next = EditorApplication.timeSinceStartup + .25;
@@ -72,7 +86,7 @@ namespace Survive.Editor
                 if (stage > 0)
                 {
                     foreach (var health in waves.AliveEnemies.ToArray()) if (health != null && !health.IsDead) health.TakeDamage(999999);
-                    var boss = Object.FindFirstObjectByType<BossBase>();
+                    var boss = Object.FindObjectsByType<BossBase>(FindObjectsSortMode.None).FirstOrDefault(b => b != blockedBoss);
                     if (boss != null && !bossSeen)
                     {
                         bossSeen = true; var a = boss.GetComponent<NavMeshAgent>();
@@ -132,19 +146,43 @@ namespace Survive.Editor
                     case 2:
                         foreach (var probe in probes)
                             Check(EnemyNavigation.CanReach(probe.GetComponent<NavMeshAgent>(), wrongPoint.position, target), "Abrir puerta restaura ruta: " + probe.GetComponent<NavMeshAgent>().agentTypeID);
+                        var bossPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ZombieRewardBossSetup.BossPath);
+                        var bossAgent = bossPrefab.GetComponent<NavMeshAgent>();
+                        Check(EnemyNavigation.CanReach(bossAgent, wrongPoint.position, target), "Boss comienza con una ruta completa antes del bloqueo");
+                        blockedBoss = Object.Instantiate(bossPrefab, wrongPoint.position + Vector3.up * bossAgent.baseOffset, Quaternion.identity).GetComponent<BossBase>();
+                        blockedBoss.name = "BossBlockedAfterCombat";
+                        VendorTurretSetup.Set(blockedBoss, "targetPlayer", target);
+                        VendorTurretSetup.Set(blockedBoss, "minionsToSpawn", 0);
+                        VendorTurretSetup.Set(blockedBoss, "areaAttackDamage", 0f);
+                        EnemyReachability.Track(blockedBoss.gameObject, target);
+                        lastBossPosition = blockedBoss.transform.position; lastBossTime = Time.time;
+                        stage = 6; next += .75;
+                        break;
+                    case 6:
+                        Check(blockedBoss.GetComponent<NavMeshAgent>().isOnNavMesh && blockedBoss.transform.position.x < wrongPoint.position.x, "Boss ya persigue al jugador cuando se corta su ruta");
                         blocker = Wall("SecondClosedDoor"); blocker.AddComponent<PuertaConLlave>();
                         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Players/EnemyChasing.prefab");
                         recovered = Object.Instantiate(prefab, wrongPoint.position + Vector3.up, Quaternion.identity).GetComponent<EnemyHealth>();
                         recovered.GetComponent<EnemyBaseController>().enabled = false;
                         EnemyReachability.Track(recovered.gameObject, target);
                         coins = target.GetComponent<PlayerWallet>().Coins;
-                        stage++; next += 8;
+                        stage = 3; next += 8;
                         break;
                     case 3:
                         Check(recovered.GetComponent<EnemyReachability>().Recoveries > 0 && recovered.transform.position.x < 1000, "Enemigo aislado se reubica en zona accesible");
                         Check(!recovered.IsDead && recovered.CurrentHealth == recovered.MaxHealth && target.GetComponent<PlayerWallet>().Coins == coins, "Recuperación conserva enemigo y vida sin regalar monedas");
                         Check(EnemyNavigation.CanReach(recovered.GetComponent<NavMeshAgent>(), recovered.transform.position - Vector3.up, target), "Enemigo recuperado puede llegar al jugador");
-                        stage++;
+                        Check(blockedBoss.GetComponent<EnemyReachability>().Recoveries == 0 && blockedBoss.transform.position.x > 1000, "Boss bloqueado permanece de su lado sin teletransportarse al jugador");
+                        Check(BossRouteRetries() > 0, "Boss bloqueado reintenta la ruta desde su posición");
+                        Check(largestBossStepExcess < 1f, "Desplazamiento del boss continuo durante el bloqueo");
+                        PlayerKeyInventory.ForPlayer(target.gameObject, true).TryAddKey();
+                        Check(blocker.GetComponent<PuertaConLlave>().Interact(target.gameObject), "Se abre la barrera durante el combate del boss");
+                        stage = 5; next += 6;
+                        break;
+                    case 5:
+                        Check(blockedBoss.transform.position.x < 1000 && !blockedBoss.Health.IsDead, "Boss retoma la persecución caminando al abrir la barrera");
+                        Check(blockedBoss.GetComponent<EnemyReachability>().Recoveries == 0 && largestBossStepExcess < 1f, "Boss cruza la ruta restaurada sin ningún Warp");
+                        stage = 4;
                         break;
                     case 4:
                         if (!bossSeen && waves.State != WaveRunState.Failed) break;
@@ -181,10 +219,12 @@ namespace Survive.Editor
             go.transform.position = new Vector3(1000,102,1000); go.transform.localScale = new Vector3(.5f,4,18); return go;
         }
         static void Check(bool pass, string label) { checks.Add((pass ? "PASS " : "FAIL ") + label); if (!pass) failures++; }
+        static int BossRouteRetries() => blockedBoss == null ? 0 : (int)(typeof(EnemyReachability).GetProperty("RouteRetries")?.GetValue(blockedBoss.GetComponent<EnemyReachability>()) ?? 0);
         static void OnLog(string message, string trace, LogType type)
         {
             if (type != LogType.Error && type != LogType.Exception && type != LogType.Assert) return;
-            if (message == "Unknown error occurred while loading 'Assets/New Terrain 3.asset'.") baselineErrors.Add(message);
+            if (message == "Unknown error occurred while loading 'Assets/New Terrain 3.asset'."
+                || message.StartsWith("SocketException: A connection attempt failed", StringComparison.Ordinal) && trace.Contains("System.Net.WebConnection")) baselineErrors.Add(message);
             else errors.Add(message);
         }
         static void TestAlternatingTemplates()
@@ -206,7 +246,7 @@ namespace Survive.Editor
         {
             Application.logMessageReceived -= OnLog;
             foreach (var item in nav) if (item.valid) item.Remove();
-            File.WriteAllText(Folder + "/validation.json", JsonUtility.ToJson(new Result { passed = checks.Count - failures, failed = failures, spawned = spawns, checks = checks.ToArray(), errors = errors.ToArray(), baselineErrors = baselineErrors.ToArray() }, true));
+            File.WriteAllText(Folder + "/validation.json", JsonUtility.ToJson(new Result { passed = checks.Count - failures, failed = failures, spawned = spawns, bossRecoveries = blockedBoss != null ? blockedBoss.GetComponent<EnemyReachability>().Recoveries : 0, bossRouteRetries = BossRouteRetries(), largestBossStepExcess = largestBossStepExcess, checks = checks.ToArray(), errors = errors.ToArray(), baselineErrors = baselineErrors.ToArray() }, true));
             SessionState.SetInt(Key + ".Exit", failures == 0 ? 0 : 1);
             Debug.Log("ENEMY_NAVIGATION_VALIDATION=" + (failures == 0 ? "PASS" : "FAIL") + " " + (checks.Count - failures) + "/" + checks.Count);
             EditorApplication.ExitPlaymode();

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using Survive.Audio;
 
 /// <summary>Conecta los controles existentes de pantalla y volumen con opciones persistentes.</summary>
 [DisallowMultipleComponent]
@@ -11,6 +12,8 @@ public sealed class MenuOptions : MonoBehaviour
     public TMP_Dropdown resolutionDropdown;
     public Toggle fullscreenToggle;
     public Slider volumeSlider;
+    public Slider musicSlider;
+    public TMP_Text musicValueLabel;
 
     [Header("Preferencias")]
     [SerializeField] private bool persistSettings = true;
@@ -20,6 +23,7 @@ public sealed class MenuOptions : MonoBehaviour
     private TMP_Dropdown boundResolutionDropdown;
     private Toggle boundFullscreenToggle;
     private Slider boundVolumeSlider;
+    private Slider boundMusicSlider;
     private int selectedResolution;
     private bool fullscreen;
     private bool preferencesDirty;
@@ -38,6 +42,8 @@ public sealed class MenuOptions : MonoBehaviour
         boundResolutionDropdown = resolutionDropdown;
         boundFullscreenToggle = fullscreenToggle;
         boundVolumeSlider = volumeSlider;
+        boundMusicSlider = musicSlider;
+        MusicVolumeSettings.Changed += RefreshMusicControl;
         if (boundResolutionDropdown != null)
         {
             boundResolutionDropdown.onValueChanged.AddListener(SetResolution);
@@ -50,6 +56,8 @@ public sealed class MenuOptions : MonoBehaviour
         {
             boundVolumeSlider.onValueChanged.AddListener(SetVolume);
         }
+        if (boundMusicSlider != null)
+            boundMusicSlider.onValueChanged.AddListener(SetMusicVolume);
     }
 
     private void OnDisable()
@@ -132,6 +140,13 @@ public sealed class MenuOptions : MonoBehaviour
             volumeSlider.wholeNumbers = false;
             volumeSlider.SetValueWithoutNotify(Mathf.Clamp01(volume));
         }
+        if (musicSlider != null)
+        {
+            musicSlider.minValue = 0f;
+            musicSlider.maxValue = 1f;
+            musicSlider.wholeNumbers = false;
+        }
+        RefreshMusicControl(MusicVolumeSettings.Volume);
         if (Application.isPlaying)
         {
             AudioListener.volume = Mathf.Clamp01(volume);
@@ -196,7 +211,8 @@ public sealed class MenuOptions : MonoBehaviour
 
     private void ApplyDisplaySettings()
     {
-        if (!Application.isPlaying || Application.isBatchMode || resolutions.Count == 0)
+        if (!Application.isPlaying || Application.isBatchMode || resolutions.Count == 0
+            || (resolutionDropdown == null && fullscreenToggle == null))
         {
             return;
         }
@@ -220,6 +236,7 @@ public sealed class MenuOptions : MonoBehaviour
 
     private void SavePreferences()
     {
+        MusicVolumeSettings.Save();
         if (Application.isPlaying && persistSettings && preferencesDirty)
         {
             PlayerPrefs.Save();
@@ -229,6 +246,9 @@ public sealed class MenuOptions : MonoBehaviour
 
     private void UnbindControls()
     {
+        MusicVolumeSettings.Changed -= RefreshMusicControl;
+        if (boundMusicSlider != null)
+            boundMusicSlider.onValueChanged.RemoveListener(SetMusicVolume);
         if (boundResolutionDropdown != null)
         {
             boundResolutionDropdown.onValueChanged.RemoveListener(SetResolution);
@@ -244,5 +264,17 @@ public sealed class MenuOptions : MonoBehaviour
         boundResolutionDropdown = null;
         boundFullscreenToggle = null;
         boundVolumeSlider = null;
+        boundMusicSlider = null;
+    }
+
+    public void SetMusicVolume(float value)
+    {
+        MusicVolumeSettings.SetVolume(value, persistSettings);
+    }
+
+    private void RefreshMusicControl(float value)
+    {
+        if (musicSlider != null) musicSlider.SetValueWithoutNotify(value);
+        if (musicValueLabel != null) musicValueLabel.text = Mathf.RoundToInt(value * 100f) + "%";
     }
 }

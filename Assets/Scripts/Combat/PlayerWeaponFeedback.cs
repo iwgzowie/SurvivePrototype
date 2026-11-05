@@ -27,9 +27,16 @@ namespace Survive.Combat
         private AudioClip lastNearClip;
         private AudioClip lastMechanismClip;
         private AudioClip lastTailClip;
+        // Las colas del paquete duran hasta varios segundos. Acotar las voces evita
+        // que el fuego automático expulse música/ambiente de las 32 voces reales.
+        public const int MaxShotVoices = 12;
+        private AudioSource[] shotVoices;
+        private int nextShotVoice;
+        private float shotBaseVolume;
 
         private void OnEnable()
         {
+            EnsureShotVoices();
             Subscribe();
             RefreshWeapon(null);
         }
@@ -60,7 +67,7 @@ namespace Survive.Combat
                 pausedWithGame = paused;
                 if (paused)
                 {
-                    if (shotSource != null) shotSource.Pause();
+                    ForEachShotVoice(source => source.Pause());
                     if (reloadSource != null) reloadSource.Pause();
                 }
                 else
@@ -70,7 +77,7 @@ namespace Survive.Combat
                         StopAudio();
                         return;
                     }
-                    if (shotSource != null) shotSource.UnPause();
+                    ForEachShotVoice(source => source.UnPause());
                     if (reloadSource != null) reloadSource.UnPause();
                 }
             }
@@ -154,7 +161,14 @@ namespace Survive.Combat
             }
             if (selected == null) return;
             previous = selected;
-            shotSource.PlayOneShot(selected, volume);
+            EnsureShotVoices();
+            AudioSource voice = shotVoices[nextShotVoice];
+            nextShotVoice = (nextShotVoice + 1) % shotVoices.Length;
+            voice.Stop();
+            voice.clip = selected;
+            voice.pitch = 1f;
+            voice.volume = shotBaseVolume * volume;
+            voice.Play();
         }
 
         private void RefreshWeapon(WeaponItem ignored)
@@ -270,9 +284,42 @@ namespace Survive.Combat
         private void StopAudio()
         {
             StopReload();
-            if (shotSource != null) shotSource.Stop();
+            ForEachShotVoice(source => source.Stop());
             if (observedWeapon != null) observedWeapon.ReloadCompleted -= OnReloadCompleted;
             observedWeapon = null;
+        }
+
+        private void EnsureShotVoices()
+        {
+            if (shotVoices != null || shotSource == null) return;
+            shotVoices = new AudioSource[MaxShotVoices];
+            shotBaseVolume = shotSource.volume;
+            shotVoices[0] = shotSource;
+            var root = new GameObject("WeaponShotVoices");
+            root.transform.SetParent(shotSource.transform, false);
+            for (int i = 1; i < shotVoices.Length; i++)
+            {
+                var voice = root.AddComponent<AudioSource>();
+                voice.playOnAwake = false;
+                voice.outputAudioMixerGroup = shotSource.outputAudioMixerGroup;
+                voice.spatialBlend = shotSource.spatialBlend;
+                voice.rolloffMode = shotSource.rolloffMode;
+                voice.minDistance = shotSource.minDistance;
+                voice.maxDistance = shotSource.maxDistance;
+                voice.dopplerLevel = shotSource.dopplerLevel;
+                voice.spread = shotSource.spread;
+                voice.panStereo = shotSource.panStereo;
+                voice.priority = shotSource.priority;
+                voice.mute = shotSource.mute;
+                shotVoices[i] = voice;
+            }
+        }
+
+        private void ForEachShotVoice(System.Action<AudioSource> action)
+        {
+            if (shotSource != null) action(shotSource);
+            if (shotVoices == null) return;
+            foreach (var source in shotVoices) if (source != null) action(source);
         }
     }
 }

@@ -100,6 +100,7 @@ namespace Survive.Editor
                 Button(panel, "Exit", "SALIR DEL JUEGO", -180, menu.ExitGame);
                 Label(panel, "Hint", "ESC · VOLVER A LA PARTIDA", new Vector2(0,-280), new Vector2(560,36), 19, theme.muted);
                 menu.container = shade.gameObject; shade.gameObject.SetActive(false);
+                MusicControlsSetup.ConfigurePause(root);
                 PrefabUtility.SaveAsPrefabAsset(root, PausePrefab);
             }
             finally { Object.DestroyImmediate(root); EditorSceneManager.ClosePreviewScene(scene); }

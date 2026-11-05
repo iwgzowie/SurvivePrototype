@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.Audio;
 
 namespace Survive.Editor
 {
@@ -23,6 +24,7 @@ namespace Survive.Editor
             var idle = EnemyZombieAnimationClips.Create(Folder, "Idle", model);
             var walk = Locomotion("Zombie_Walk", Motions + "/Walk/Walking.fbx");
             var run = Locomotion("Zombie_Run", Motions + "/Run/Running.fbx");
+            ConfigureFootstepEvents();
             var melee = EnemyZombieAnimationClips.Create(Folder, "MeleeAttack", model);
             var spit = EnemyZombieAnimationClips.Create(Folder, "SpitAttack", model);
             var death = EnemyZombieAnimationClips.Create(Folder, "Death", model);
@@ -41,6 +43,56 @@ namespace Survive.Editor
             string name = $"ApocalypseZombie_{index:00}";
             return AssetDatabase.LoadAssetAtPath<GameObject>($"{Models}/{name}/{name}.prefab")
                 ?? throw new InvalidOperationException("No se encontró " + name);
+        }
+
+        [MenuItem("Survive/Audio/Conectar eventos de pasos de zombies")]
+        public static void ConfigureFootstepEvents()
+        {
+            foreach (string name in new[] { "Zombie_Walk", "Zombie_Run" })
+            {
+                var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>($"{Folder}/{name}.anim");
+                if (clip == null) throw new InvalidOperationException("Falta " + name);
+                var events = AnimationUtility.GetAnimationEvents(clip).Where(e => e.functionName != "Footstep").ToList();
+                foreach (float phase in new[] { .15f, .65f }) events.Add(new AnimationEvent { time = clip.length * phase, functionName = "Footstep" });
+                AnimationUtility.SetAnimationEvents(clip, events.OrderBy(e => e.time).ToArray());EditorUtility.SetDirty(clip);
+            }
+            ConfigureBossFootsteps();
+            AssetDatabase.SaveAssets();
+        }
+
+        static void ConfigureBossFootsteps()
+        {
+            const string path = "Assets/Prefabs/Enemies/Boss_Zombie.prefab";
+            if (!File.Exists(path)) return;
+            var root = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                if (root.GetComponent<ZombieFootstepAudio>() != null) return;
+                var audio = root.AddComponent<ZombieFootstepAudio>();
+                var source = root.GetComponents<AudioSource>().Last();
+                var mixer = AssetDatabase.LoadAssetAtPath<AudioMixer>("Assets/AudioMixer.mixer");
+                var data = new SerializedObject(audio);
+                data.FindProperty("footstepType").enumValueIndex = 2;
+                data.FindProperty("health").objectReferenceValue = root.GetComponent<EnemyHealth>();
+                data.FindProperty("footstepSource").objectReferenceValue = source;
+                data.FindProperty("sfxGroup").objectReferenceValue = mixer.FindMatchingGroups("").First(g => g.name == "SFX");
+                var clips = AssetDatabase.FindAssets("t:AudioClip", new[] { "Assets/Audio/SFXEnemy" }).Select(AssetDatabase.GUIDToAssetPath)
+                    .Where(p => p.Contains("BOSSWALK")).ToArray();
+                var surfaces = data.FindProperty("surfaces");surfaces.arraySize = 3;
+                for (int i = 0; i < 3; i++)
+                {
+                    string folder = i == 0 ? "Concrete" : i == 1 ? "Tile" : "Mud";
+                    var selected = clips.Where(p => p.Contains("/" + folder + "/")).ToArray();
+                    if (selected.Length == 0) selected = clips.Where(p => p.Contains("/Concrete/")).ToArray();
+                    if (selected.Length == 0) throw new InvalidOperationException("Faltan clips de pasos del boss");
+                    var entry = surfaces.GetArrayElementAtIndex(i);entry.FindPropertyRelative("surface").enumValueIndex = i == 0 ? 2 : i == 1 ? 1 : 0;
+                    var array = entry.FindPropertyRelative("clips");array.arraySize = selected.Length;
+                    for (int j = 0; j < selected.Length; j++) array.GetArrayElementAtIndex(j).objectReferenceValue = AssetDatabase.LoadAssetAtPath<AudioClip>(selected[j]);
+                }
+                data.ApplyModifiedPropertiesWithoutUndo();source.playOnAwake = false;
+                PrefabUtility.SaveAsPrefabAsset(root, path);
+            }
+            finally { PrefabUtility.UnloadPrefabContents(root); }
         }
 
         static AnimationClip Locomotion(string name, string source)

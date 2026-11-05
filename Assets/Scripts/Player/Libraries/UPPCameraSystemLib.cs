@@ -83,6 +83,8 @@ namespace UPP.ThirdPersonController.CameraSystems
 		public Transform TargetToFollow;
 		public LayerMask CameraCollisionLayerMask;
 
+        float cameraCollisionDistance = -1f;
+
 		public bool LockCursor = true;
 		public bool HideCursor = true;
 		
@@ -376,13 +378,25 @@ namespace UPP.ThirdPersonController.CameraSystems
 
 				public virtual void SetCameraCollision(LayerMask CollisionLayer, bool Enabled = true)
 		{
-			if (Enabled == false) return;
-
-			RaycastHit CameraCollisionHit;
-			if (Physics.Linecast(transform.position, mCamera.transform.position, out CameraCollisionHit, CollisionLayer))
-			{
-				mCamera.transform.position = CameraCollisionHit.point + CameraCollisionHit.normal * 0.05f;
-			}
+            if (!Enabled || mCamera == null) { cameraCollisionDistance = -1f; return; }
+            Vector3 origin = transform.position;
+            Vector3 delta = mCamera.transform.position - origin;
+            float desiredDistance = delta.magnitude;
+            if (desiredDistance < .001f) { cameraCollisionDistance = -1f; return; }
+            Vector3 direction = delta / desiredDistance;
+            var ownerBody = TargetToFollow != null ? TargetToFollow.GetComponentInParent<Rigidbody>() : null;
+            Transform owner = ownerBody != null ? ownerBody.transform : TargetToFollow;
+            float allowedDistance = desiredDistance;
+            // Los volúmenes de audio, pickups y zonas no son obstáculos para la cámara.
+            foreach (var hit in Physics.SphereCastAll(origin, .15f, direction, desiredDistance, CollisionLayer, QueryTriggerInteraction.Ignore))
+            {
+                if (hit.collider == null || owner != null && hit.collider.transform.IsChildOf(owner)) continue;
+                allowedDistance = Mathf.Min(allowedDistance, Mathf.Max(.05f, hit.distance - .05f));
+            }
+            // Contraer inmediatamente evita atravesar paredes; volver suavemente evita tirones al salir de una esquina.
+            if (cameraCollisionDistance < 0 || allowedDistance < cameraCollisionDistance) cameraCollisionDistance = allowedDistance;
+            else cameraCollisionDistance = Mathf.Lerp(cameraCollisionDistance, allowedDistance, 1f - Mathf.Exp(-10f * Time.deltaTime));
+            mCamera.transform.position = origin + direction * Mathf.Min(desiredDistance, cameraCollisionDistance);
 		}
 
 				public virtual void SetFieldOfView(float FOV)

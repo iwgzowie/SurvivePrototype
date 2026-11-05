@@ -47,6 +47,7 @@ namespace Survive.Editor
                     var open=pause.Find("Leaderboard");
                     if(open==null) Button(pause,"Leaderboard","CLASIFICACIÓN",new Vector2(0,-30),new Vector2(490,70),ui.OpenLeaderboard);
                     else Wire(open.GetComponent<Button>(),ui.OpenLeaderboard);
+                    MusicControlsSetup.ConfigurePause(menu.gameObject);
                 }
                 if(menu.IsMainMenu)
                 {
